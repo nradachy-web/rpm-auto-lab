@@ -50,8 +50,10 @@ export default function Footer() {
 
   return (
     <footer className="relative bg-rpm-charcoal border-t border-rpm-gray/30">
-      {/* Red accent line at top */}
-      <div className="h-px bg-gradient-to-r from-transparent via-rpm-red/50 to-transparent" />
+      {/* M-stripe accent line at top */}
+      <div className="m-stripe h-[2px]">
+        <div /><div /><div />
+      </div>
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Main footer grid */}

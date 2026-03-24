@@ -112,7 +112,7 @@ function CarModel({
 
   // Apply service effects
   useEffect(() => {
-    const { body, glass, originals } = materialCategories;
+    const { body, glass, chrome, originals } = materialCategories;
 
     // Reset all to originals first
     originals.forEach((orig, mat) => {
@@ -121,6 +121,7 @@ function CarModel({
       mat.metalness = orig.metalness;
       mat.opacity = orig.opacity;
       mat.transparent = orig.opacity < 1;
+      mat.envMapIntensity = 1;
       mat.needsUpdate = true;
     });
 
@@ -132,11 +133,22 @@ function CarModel({
       });
     }
 
-    // Ceramic Coating — ultra glossy mirror finish
+    // Ceramic Coating — dramatic wet-look mirror finish
     if (activeServices.has("ceramic-coating")) {
       body.forEach((mat) => {
-        mat.roughness = 0.02;
-        mat.metalness = 0.9;
+        mat.roughness = 0.01;
+        mat.metalness = 0.95;
+        // Boost color saturation slightly for that "wet" look
+        const hsl = { h: 0, s: 0, l: 0 };
+        mat.color.getHSL(hsl);
+        mat.color.setHSL(hsl.h, Math.min(hsl.s * 1.3, 1), hsl.l * 1.1);
+        mat.envMapIntensity = 2.5; // stronger reflections
+        mat.needsUpdate = true;
+      });
+      // Also make chrome shinier
+      chrome.forEach((mat) => {
+        mat.roughness = 0.0;
+        mat.envMapIntensity = 3;
         mat.needsUpdate = true;
       });
     }
@@ -166,13 +178,17 @@ function CarModel({
       });
     }
 
-    // Window Tint — darken glass
+    // Window Tint — darken glass progressively
     if (activeServices.has("window-tint")) {
       glass.forEach((mat) => {
-        const darkness = tintLevel / 100;
-        mat.color.set(new THREE.Color(0.05 * (1 - darkness), 0.05 * (1 - darkness), 0.08 * (1 - darkness)));
-        mat.opacity = 0.3 + darkness * 0.6;
+        // tintLevel: 5 = limo (very dark), 50 = light
+        // Invert so lower VLT = darker
+        const darknessRatio = 1 - (tintLevel / 70); // 0.28 (light) → 0.93 (limo)
+        const colorVal = 0.02 + (1 - darknessRatio) * 0.08; // very dark color
+        mat.color.set(new THREE.Color(colorVal, colorVal, colorVal * 1.1));
+        mat.opacity = 0.5 + darknessRatio * 0.48; // 0.5 → 0.98 (nearly opaque when dark)
         mat.transparent = true;
+        mat.depthWrite = false;
         mat.needsUpdate = true;
       });
     }
@@ -180,7 +196,7 @@ function CarModel({
 
   return (
     <Center>
-      <group ref={modelRef}>
+      <group ref={modelRef} position={[0, 0.35, 0]}>
         <primitive object={clonedScene} scale={1.2} />
       </group>
     </Center>
@@ -327,17 +343,17 @@ export default function VehicleVisualizer() {
 
               {/* Ground shadows */}
               <ContactShadows
-                position={[0, -0.01, 0]}
-                opacity={0.6}
-                scale={12}
-                blur={2.5}
-                far={4}
+                position={[0, -0.5, 0]}
+                opacity={0.5}
+                scale={14}
+                blur={3}
+                far={5}
               />
 
-              {/* Dark ground plane */}
-              <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
-                <planeGeometry args={[50, 50]} />
-                <meshStandardMaterial color="#0a0a0a" roughness={0.8} metalness={0.2} />
+              {/* Dark reflective ground plane */}
+              <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.52, 0]} receiveShadow>
+                <planeGeometry args={[60, 60]} />
+                <meshStandardMaterial color="#080808" roughness={0.85} metalness={0.15} />
               </mesh>
 
               {/* Animated camera that moves to service focus points */}

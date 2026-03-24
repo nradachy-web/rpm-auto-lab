@@ -31,9 +31,14 @@ export default function Navbar() {
 
   return (
     <>
+      {/* BMW M-Stripe — signature tri-color bar at top of page */}
+      <div className="fixed top-0 left-0 right-0 z-50 m-stripe h-[3px]">
+        <div /><div /><div />
+      </div>
+
       <nav
         className={cn(
-          "fixed top-0 left-0 right-0 z-50 transition-all duration-500",
+          "fixed top-[3px] left-0 right-0 z-50 transition-all duration-500",
           scrolled
             ? "bg-rpm-dark/95 backdrop-blur-md shadow-lg shadow-black/20 border-b border-rpm-gray/30"
             : "bg-transparent"

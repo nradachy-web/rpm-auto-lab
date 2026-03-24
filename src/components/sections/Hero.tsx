@@ -58,6 +58,10 @@ export default function Hero() {
       {/* Red radial glow */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(220,38,38,0.08)_0%,transparent_70%)]" />
 
+      {/* M-colored ambient glows */}
+      <div className="absolute top-1/4 left-0 w-1/3 h-1/2 bg-[radial-gradient(ellipse_at_center,rgba(0,102,177,0.04)_0%,transparent_70%)] pointer-events-none" />
+      <div className="absolute bottom-1/4 right-0 w-1/3 h-1/2 bg-[radial-gradient(ellipse_at_center,rgba(220,38,38,0.04)_0%,transparent_70%)] pointer-events-none" />
+
       {/* Floating geometric shapes */}
       {shapes.map((shape, i) => (
         <FloatingShape key={i} {...shape} />
@@ -114,6 +118,16 @@ export default function Hero() {
           >
             Oakland County&apos;s Premier Auto Protection Lab
           </motion.p>
+
+          {/* M-stripe accent */}
+          <motion.div
+            className="mx-auto mb-8 w-32 m-stripe h-[2px] rounded-full overflow-hidden"
+            initial={{ opacity: 0, scaleX: 0 }}
+            animate={{ opacity: 1, scaleX: 1 }}
+            transition={{ duration: 0.8, delay: 0.8 }}
+          >
+            <div /><div /><div />
+          </motion.div>
 
           <motion.div
             className="flex flex-col sm:flex-row gap-4 justify-center items-center"

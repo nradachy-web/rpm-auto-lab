@@ -9,14 +9,16 @@ export default function CTABanner() {
     <section className="relative py-24 md:py-32 px-6 overflow-hidden">
       {/* Dark background with red gradient accents */}
       <div className="absolute inset-0 bg-rpm-dark" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(220,38,38,0.12)_0%,transparent_50%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,rgba(220,38,38,0.08)_0%,transparent_50%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(0,102,177,0.08)_0%,transparent_50%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,rgba(220,38,38,0.10)_0%,transparent_50%)]" />
 
       {/* Shimmer effect */}
       <div className="absolute inset-0 shimmer" />
 
-      {/* Red accent lines */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-rpm-red/50 to-transparent" />
+      {/* M-stripe accent at top */}
+      <div className="absolute top-0 left-0 right-0 m-stripe h-[2px]">
+        <div /><div /><div />
+      </div>
       <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-rpm-red/30 to-transparent" />
 
       <div className="relative z-10 max-w-4xl mx-auto text-center">

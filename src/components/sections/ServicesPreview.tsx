@@ -40,7 +40,7 @@ function ServiceCard({
   return (
     <AnimatedSection delay={0.1 * index} direction="up">
       <Link href={`/services#${service.id}`} className="block h-full group">
-        <div className="relative h-full p-6 md:p-8 bg-rpm-dark border border-rpm-gray/50 rounded-2xl transition-all duration-500 hover:scale-[1.03] hover:border-rpm-red/50 hover:shadow-[0_0_30px_rgba(220,38,38,0.15)] overflow-hidden">
+        <div className="relative h-full p-6 md:p-8 bg-rpm-dark border border-rpm-gray/50 rounded-2xl transition-all duration-500 hover:scale-[1.03] hover:border-rpm-red/50 hover:shadow-[0_0_20px_rgba(220,38,38,0.12),0_0_40px_rgba(0,102,177,0.06)] overflow-hidden">
           {/* Shimmer overlay on hover */}
           <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-rpm-red/5 to-transparent" />
 
@@ -82,6 +82,11 @@ export default function ServicesPreview() {
   return (
     <section className="relative py-24 md:py-32 px-6">
       <div className="max-w-7xl mx-auto">
+        {/* M-stripe accent */}
+        <div className="mx-auto mb-6 w-24 m-stripe h-[2px] rounded-full overflow-hidden">
+          <div /><div /><div />
+        </div>
+
         <SectionHeading
           badge="Our Services"
           title="What We Do"

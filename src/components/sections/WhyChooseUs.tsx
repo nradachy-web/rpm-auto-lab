@@ -59,7 +59,9 @@ export default function WhyChooseUs() {
               in a controlled environment with proper lighting, climate control,
               and zero shortcuts. That&apos;s the RPM difference.
             </p>
-            <div className="mt-8 h-1 w-20 bg-gradient-to-r from-rpm-red to-rpm-orange rounded-full" />
+            <div className="mt-8 w-20 m-stripe h-[3px] rounded-full overflow-hidden">
+              <div /><div /><div />
+            </div>
           </AnimatedSection>
 
           {/* Right side - feature list */}

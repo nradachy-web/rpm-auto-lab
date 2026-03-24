@@ -14,6 +14,11 @@
   --color-rpm-red-glow: #ef4444;
   --color-rpm-orange: #f97316;
 
+  /* BMW M-Sport Stripe Colors */
+  --color-m-blue: #0066B1;
+  --color-m-indigo: #1B1464;
+  --color-m-red: #DC2626;
+
   --font-heading: "Inter", system-ui, sans-serif;
   --font-body: "Inter", system-ui, sans-serif;
 }
@@ -114,4 +119,30 @@ body {
 }
 .pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* BMW M-Sport Utility Classes */
+.m-stripe {
+  display: flex;
+  height: 3px;
+  width: 100%;
+}
+.m-stripe > :nth-child(1) { flex: 1; background: var(--color-m-blue); }
+.m-stripe > :nth-child(2) { flex: 1; background: var(--color-m-indigo); }
+.m-stripe > :nth-child(3) { flex: 1; background: var(--color-m-red); }
+
+.m-stripe-vertical {
+  display: flex;
+  flex-direction: column;
+  width: 3px;
+  height: 100%;
+}
+.m-stripe-vertical > :nth-child(1) { flex: 1; background: var(--color-m-blue); }
+.m-stripe-vertical > :nth-child(2) { flex: 1; background: var(--color-m-indigo); }
+.m-stripe-vertical > :nth-child(3) { flex: 1; background: var(--color-m-red); }
+
+.m-glow {
+  box-shadow:
+    0 0 15px rgba(0, 102, 177, 0.15),
+    0 0 15px rgba(220, 38, 38, 0.15);
 }
