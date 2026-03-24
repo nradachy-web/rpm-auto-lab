@@ -17,7 +17,8 @@ import { SERVICES } from "@/lib/constants";
 import SectionHeading from "@/components/ui/SectionHeading";
 import AnimatedSection from "@/components/ui/AnimatedSection";
 
-const iconMap: Record<string, React.ElementType> = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const iconMap: Record<string, any> = {
   Shield,
   Layers,
   Sun,
