@@ -27,6 +27,17 @@ const selectClasses =
 const spinnerClasses =
   "absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin rounded-full border-2 border-rpm-silver border-t-rpm-red";
 
+// Only show mainstream consumer brands customers would actually have
+const MAJOR_MAKES = new Set([
+  "ACURA", "ALFA ROMEO", "ASTON MARTIN", "AUDI", "BENTLEY", "BMW", "BUICK",
+  "CADILLAC", "CHEVROLET", "CHRYSLER", "DODGE", "FERRARI", "FIAT", "FORD",
+  "GENESIS", "GMC", "HONDA", "HYUNDAI", "INFINITI", "JAGUAR", "JEEP", "KIA",
+  "LAMBORGHINI", "LAND ROVER", "LEXUS", "LINCOLN", "LUCID", "MASERATI",
+  "MAZDA", "MCLAREN", "MERCEDES-BENZ", "MINI", "MITSUBISHI", "NISSAN",
+  "POLESTAR", "PORSCHE", "RAM", "RIVIAN", "ROLLS-ROYCE", "SUBARU", "TESLA",
+  "TOYOTA", "VOLKSWAGEN", "VOLVO",
+]);
+
 export default function VehicleSearch({ onChange, className }: VehicleSearchProps) {
   const [year, setYear] = useState<number | null>(null);
   const [make, setMake] = useState("");
@@ -60,6 +71,7 @@ export default function VehicleSearch({ onChange, className }: VehicleSearchProp
         if (!cancelled) {
           const sorted = (data.Results || [])
             .map((r: { MakeName: string }) => r.MakeName)
+            .filter((name: string) => MAJOR_MAKES.has(name.toUpperCase()))
             .sort((a: string, b: string) => a.localeCompare(b));
           setMakes(sorted);
         }
