@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { SERVICES, BRAND } from "@/lib/constants";
 import AnimatedSection from "@/components/ui/AnimatedSection";
 import Button from "@/components/ui/Button";
@@ -14,6 +15,16 @@ import {
   ArrowRight,
   Phone,
 } from "lucide-react";
+
+const serviceImages: Record<string, string> = {
+  "ceramic-coating": "/rpm-auto-lab/images/services/ceramic-coating.jpg",
+  "paint-protection-film": "/rpm-auto-lab/images/services/ppf.jpg",
+  "window-tint": "/rpm-auto-lab/images/services/window-tint.jpg",
+  "vehicle-wraps": "/rpm-auto-lab/images/services/vehicle-wraps.jpg",
+  "paint-correction": "/rpm-auto-lab/images/services/paint-correction.jpg",
+  "detailing": "/rpm-auto-lab/images/services/detailing.jpg",
+  "windshield-protection": "/rpm-auto-lab/images/services/windshield-protection.jpg",
+};
 
 export const metadata: Metadata = {
   title: "Services",
@@ -132,7 +143,23 @@ export default function ServicesPage() {
 
                 <div className="relative z-10 max-w-6xl mx-auto px-6 lg:px-16">
                   <AnimatedSection direction={isEven ? "right" : "left"} delay={0.1}>
-                    <div className={`flex flex-col ${isEven ? "items-end text-right" : "items-start text-left"}`}>
+                    <div className={`grid grid-cols-1 lg:grid-cols-2 gap-10 items-center ${isEven ? "direction-rtl" : ""}`}>
+                      {/* Service Image */}
+                      {serviceImages[service.id] && (
+                        <div className={`relative aspect-[16/10] rounded-2xl overflow-hidden ${isEven ? "lg:order-2" : ""}`}>
+                          <Image
+                            src={serviceImages[service.id]}
+                            alt={service.name}
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 1024px) 100vw, 50vw"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-rpm-black/40 to-transparent" />
+                        </div>
+                      )}
+
+                      {/* Service Content */}
+                      <div className={`flex flex-col ${isEven ? "items-end text-right lg:order-1" : "items-start text-left"}`} style={{ direction: "ltr" }}>
                       {/* Service number + icon row */}
                       <div className={`flex items-center gap-4 mb-6 ${isEven ? "flex-row-reverse" : ""}`}>
                         <span className="text-sm font-mono font-bold text-m-blue tracking-widest">
@@ -188,6 +215,7 @@ export default function ServicesPage() {
                           Get a Quote
                           <ArrowRight className="w-4 h-4" />
                         </Button>
+                      </div>
                       </div>
                     </div>
                   </AnimatedSection>
