@@ -21,13 +21,13 @@ const CONFIGURATOR_SERVICES = [
 
 // ─── Camera positions per service (like a video game customizer) ────
 const CAMERA_POSITIONS: Record<string, { position: [number, number, number]; target: [number, number, number] }> = {
-  default: { position: [4.5, 2, 5], target: [0, 0.5, 0] },
-  "ceramic-coating": { position: [2.5, 1.2, 3], target: [0, 0.6, 0.5] }, // close-up front quarter
-  ppf: { position: [2, 0.8, 2.5], target: [0.5, 0.3, 1.5] }, // hood/bumper area
-  "window-tint": { position: [4, 1.5, 0.5], target: [0, 0.8, 0] }, // side view, windows
-  "vehicle-wraps": { position: [5, 2.5, 5.5], target: [0, 0.4, 0] }, // wide dramatic view
-  "paint-correction": { position: [1.5, 0.6, 2], target: [0.3, 0.5, 0.8] }, // close panel
-  detailing: { position: [3.5, 1.5, -3], target: [0, 0.5, 0] }, // rear 3/4 view
+  default: { position: [4.5, 2.5, 5], target: [0, 0.7, 0] },
+  "ceramic-coating": { position: [2.5, 1.8, 3], target: [0, 0.9, 0.5] },
+  ppf: { position: [2, 1.3, 2.5], target: [0.5, 0.7, 1.5] },
+  "window-tint": { position: [4, 2, 0.5], target: [0, 1.1, 0] },
+  "vehicle-wraps": { position: [5, 3, 5.5], target: [0, 0.7, 0] },
+  "paint-correction": { position: [1.5, 1.2, 2], target: [0.3, 0.8, 0.8] },
+  detailing: { position: [3.5, 2, -3], target: [0, 0.8, 0] },
 };
 
 // ─── Animated Camera ─────────────────────────────────────────────────
@@ -90,7 +90,8 @@ function CarModel({
           const combined = meshName + " " + matName;
 
           // Classify by material properties and names
-          if (mat.transparent || combined.includes("glass") || combined.includes("window") || combined.includes("699") || combined.includes("775")) {
+          // Material_699, _775, _718 are all BLEND mode glass in this model
+          if (mat.transparent || mat.opacity < 1 || combined.includes("glass") || combined.includes("window") || combined.includes("699") || combined.includes("775") || combined.includes("718")) {
             glass.push(mat);
           } else if (combined.includes("692") || combined.includes("body") || combined.includes("paint")) {
             // Material_692 is the main body paint (has clearcoat)
@@ -181,14 +182,16 @@ function CarModel({
     // Window Tint — darken glass progressively
     if (activeServices.has("window-tint")) {
       glass.forEach((mat) => {
-        // tintLevel: 5 = limo (very dark), 50 = light
-        // Invert so lower VLT = darker
-        const darknessRatio = 1 - (tintLevel / 70); // 0.28 (light) → 0.93 (limo)
-        const colorVal = 0.02 + (1 - darknessRatio) * 0.08; // very dark color
-        mat.color.set(new THREE.Color(colorVal, colorVal, colorVal * 1.1));
-        mat.opacity = 0.5 + darknessRatio * 0.48; // 0.5 → 0.98 (nearly opaque when dark)
+        // tintLevel: 5 = limo (nearly opaque black), 50 = light tint
+        // At 5%: windows should be almost completely black
+        // At 50%: visible tint but still somewhat transparent
+        const t = tintLevel / 100; // 0.05 (dark) → 0.5 (light)
+        const colorVal = t * 0.15; // 0.0075 (near black) → 0.075 (very dark gray)
+        mat.color.set(new THREE.Color(colorVal, colorVal, colorVal));
+        mat.opacity = 0.98 - t * 0.7; // 0.945 (5% = almost opaque) → 0.63 (50% = tinted)
         mat.transparent = true;
         mat.depthWrite = false;
+        mat.side = THREE.DoubleSide;
         mat.needsUpdate = true;
       });
     }
@@ -196,7 +199,7 @@ function CarModel({
 
   return (
     <Center>
-      <group ref={modelRef} position={[0, 0.35, 0]}>
+      <group ref={modelRef} position={[0, 0.7, 0]}>
         <primitive object={clonedScene} scale={1.2} />
       </group>
     </Center>
@@ -310,50 +313,61 @@ export default function VehicleVisualizer() {
 
             <Canvas
               camera={{ position: [4.5, 2, 5], fov: 40, near: 0.1, far: 100 }}
-              gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.2 }}
-              style={{ background: "#0a0a0a" }}
+              gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.4 }}
+              style={{ background: "#111111" }}
             >
-              {/* Lighting — 3-point studio setup */}
-              <ambientLight intensity={0.4} />
+              {/* Shop/showroom lighting — bright overhead + warm fills */}
+              <ambientLight intensity={0.6} color="#f0f0f0" />
+              {/* Main overhead key light — like shop fluorescents */}
               <spotLight
-                position={[8, 8, 5]}
-                angle={0.4}
-                penumbra={0.8}
-                intensity={2}
+                position={[0, 10, 0]}
+                angle={0.8}
+                penumbra={1}
+                intensity={2.5}
                 color="#ffffff"
                 castShadow
               />
+              {/* Front fill — slightly warm */}
               <spotLight
-                position={[-6, 4, -3]}
+                position={[6, 6, 6]}
+                angle={0.5}
+                penumbra={0.8}
+                intensity={1.5}
+                color="#fff5e6"
+              />
+              {/* Back fill — cool accent */}
+              <spotLight
+                position={[-5, 5, -4]}
                 angle={0.5}
                 penumbra={1}
                 intensity={1}
-                color="#b8c4ff"
+                color="#e0e8ff"
               />
+              {/* Rim/edge light from behind */}
               <spotLight
-                position={[0, 6, -8]}
-                angle={0.3}
-                penumbra={0.5}
-                intensity={0.8}
-                color="#ffd4d4"
+                position={[0, 4, -8]}
+                angle={0.4}
+                penumbra={0.6}
+                intensity={1.2}
+                color="#ffffff"
               />
 
-              {/* Environment for reflections */}
-              <Environment preset="city" />
+              {/* Warehouse environment for realistic reflections */}
+              <Environment preset="warehouse" />
 
               {/* Ground shadows */}
               <ContactShadows
-                position={[0, -0.5, 0]}
-                opacity={0.5}
-                scale={14}
-                blur={3}
-                far={5}
+                position={[0, -0.8, 0]}
+                opacity={0.4}
+                scale={16}
+                blur={2.5}
+                far={6}
               />
 
-              {/* Dark reflective ground plane */}
-              <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.52, 0]} receiveShadow>
+              {/* Shop floor — dark concrete look */}
+              <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.82, 0]} receiveShadow>
                 <planeGeometry args={[60, 60]} />
-                <meshStandardMaterial color="#080808" roughness={0.85} metalness={0.15} />
+                <meshStandardMaterial color="#151515" roughness={0.7} metalness={0.1} />
               </mesh>
 
               {/* Animated camera that moves to service focus points */}
