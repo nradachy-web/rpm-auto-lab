@@ -30,20 +30,106 @@ const CAMERA_POSITIONS: Record<string, { position: [number, number, number]; tar
   detailing: { position: [4, 2.5, -3.5], target: [0, 1.0, 0] },
 };
 
+// Scale camera positions further back on mobile
+function useMobileCameraPositions(basePositions: typeof CAMERA_POSITIONS) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 1024);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  return useMemo(() => {
+    if (!isMobile) return basePositions;
+    const scaled: typeof CAMERA_POSITIONS = {};
+    for (const [key, val] of Object.entries(basePositions)) {
+      // Push camera ~30% further back and slightly higher on mobile
+      scaled[key] = {
+        position: [val.position[0] * 1.3, val.position[1] * 1.15, val.position[2] * 1.3],
+        target: val.target,
+      };
+    }
+    return scaled;
+  }, [isMobile, basePositions]);
+}
+
+// ─── Hook for mobile detection ──────────────────────────────────────
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 1024);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+  return isMobile;
+}
+
 // ─── Animated Camera ─────────────────────────────────────────────────
-function AnimatedCamera({ targetPos, targetLookAt }: {
+function AnimatedCamera({
+  targetPos,
+  targetLookAt,
+  onAnimating,
+}: {
   targetPos: [number, number, number];
   targetLookAt: [number, number, number];
+  onAnimating?: (animating: boolean) => void;
 }) {
   const { camera } = useThree();
   const currentLookAt = useRef(new THREE.Vector3(0, 0.5, 0));
+  const targetVec = useRef(new THREE.Vector3(...targetPos));
+  const targetLookAtVec = useRef(new THREE.Vector3(...targetLookAt));
+  const settleTimer = useRef(0);
+  const wasAnimating = useRef(false);
 
-  useFrame(() => {
+  // Update targets when props change
+  useEffect(() => {
+    targetVec.current.set(...targetPos);
+    targetLookAtVec.current.set(...targetLookAt);
+    settleTimer.current = 0;
+    wasAnimating.current = true;
+    onAnimating?.(true);
+  }, [targetPos, targetLookAt, onAnimating]);
+
+  useFrame((_, delta) => {
     // Smooth lerp to target position
-    camera.position.lerp(new THREE.Vector3(...targetPos), 0.03);
-    currentLookAt.current.lerp(new THREE.Vector3(...targetLookAt), 0.03);
+    camera.position.lerp(targetVec.current, 0.03);
+    currentLookAt.current.lerp(targetLookAtVec.current, 0.03);
     camera.lookAt(currentLookAt.current);
+
+    // Check if settled (close enough to target)
+    if (wasAnimating.current) {
+      const dist = camera.position.distanceTo(targetVec.current);
+      if (dist < 0.05) {
+        settleTimer.current += delta;
+        if (settleTimer.current > 0.5) {
+          wasAnimating.current = false;
+          onAnimating?.(false);
+        }
+      }
+    }
   });
+
+  return null;
+}
+
+// ─── Responsive Camera Config ────────────────────────────────────────
+function ResponsiveCameraConfig() {
+  const { camera } = useThree();
+
+  useEffect(() => {
+    const updateFov = () => {
+      if (camera instanceof THREE.PerspectiveCamera) {
+        camera.fov = window.innerWidth < 1024 ? 48 : 40;
+        camera.updateProjectionMatrix();
+      }
+    };
+    updateFov();
+    window.addEventListener("resize", updateFov);
+    return () => window.removeEventListener("resize", updateFov);
+  }, [camera]);
 
   return null;
 }
@@ -58,7 +144,7 @@ function CarModel({
   wrapColor: string;
   tintLevel: number;
 }) {
-  const { scene, animations } = useGLTF("/rpm-auto-lab/models/bmw-m4.glb");
+  const { scene } = useGLTF("/rpm-auto-lab/models/bmw-m4.glb");
   const modelRef = useRef<THREE.Group>(null);
   const clonedScene = useMemo(() => scene.clone(true), [scene]);
 
@@ -89,19 +175,14 @@ function CarModel({
           const matName = (mat.name || "").toLowerCase();
           const combined = meshName + " " + matName;
 
-          // Classify by material properties and names
-          // Material_699, _775, _718 are BLEND mode in the model = glass
-          // Also catch any material with opacity < 1 or transparency
           const isBlendMaterial = combined.includes("699") || combined.includes("775") || combined.includes("718");
           if (mat.transparent || mat.opacity < 1 || isBlendMaterial || combined.includes("glass") || combined.includes("window") || combined.includes("windshield")) {
             glass.push(mat);
           } else if (combined.includes("692") || combined.includes("body") || combined.includes("paint")) {
-            // Material_692 is the main body paint (has clearcoat)
             body.push(mat);
           } else if (mat.metalness > 0.8 && mat.roughness < 0.2) {
             chrome.push(mat);
           } else if (mat.roughness < 0.3 && !combined.includes("tire") && !combined.includes("rubber")) {
-            // Likely painted/glossy body panels
             body.push(mat);
           } else {
             other.push(mat);
@@ -141,14 +222,12 @@ function CarModel({
       body.forEach((mat) => {
         mat.roughness = 0.01;
         mat.metalness = 0.95;
-        // Boost color saturation slightly for that "wet" look
         const hsl = { h: 0, s: 0, l: 0 };
         mat.color.getHSL(hsl);
         mat.color.setHSL(hsl.h, Math.min(hsl.s * 1.3, 1), hsl.l * 1.1);
-        mat.envMapIntensity = 2.5; // stronger reflections
+        mat.envMapIntensity = 2.5;
         mat.needsUpdate = true;
       });
-      // Also make chrome shinier
       chrome.forEach((mat) => {
         mat.roughness = 0.0;
         mat.envMapIntensity = 3;
@@ -184,16 +263,12 @@ function CarModel({
     // Window Tint — darken ALL glass progressively
     if (activeServices.has("window-tint")) {
       glass.forEach((mat) => {
-        // tintLevel: 5 = limo (essentially opaque black), 50 = light tint
-        const t = tintLevel / 100; // 0.05 → 0.5
-        // Color: at 5% = #000000, at 50% = very dark gray
+        const t = tintLevel / 100;
         mat.color.set(new THREE.Color(t * 0.08, t * 0.08, t * 0.08));
-        // Opacity: at 5% = 0.99 (nearly solid black), at 50% = 0.7 (tinted but see-through)
         mat.opacity = 0.99 - t * 0.58;
         mat.transparent = true;
         mat.depthWrite = false;
         mat.side = THREE.DoubleSide;
-        // Remove any textures that might override the tint color
         if (mat.map) {
           mat.map = null;
         }
@@ -249,31 +324,50 @@ export default function VehicleVisualizer() {
   const [tintLevel, setTintLevel] = useState(35);
   const [wrapColor, setWrapColor] = useState("#1a1a1a");
   const [lastActiveService, setLastActiveService] = useState<string>("default");
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(true);
+  const orbitRef = useRef<React.ComponentRef<typeof OrbitControls>>(null);
+  const isMobile = useIsMobile();
+
+  // Responsive camera positions (further back on mobile)
+  const cameraPositions = useMobileCameraPositions(CAMERA_POSITIONS);
 
   const estimatedTotal = CONFIGURATOR_SERVICES.filter((s) =>
     activeServices.has(s.id)
   ).reduce((sum, s) => sum + s.price, 0);
+
+  // Stable callback ref for animation state
+  const handleAnimating = useCallback((animating: boolean) => {
+    setIsAnimating(animating);
+  }, []);
+
+  // Disable OrbitControls during camera animation
+  useEffect(() => {
+    if (orbitRef.current) {
+      // When animating, disable orbit controls so they don't fight
+      (orbitRef.current as unknown as { enabled: boolean }).enabled = !isAnimating;
+    }
+  }, [isAnimating]);
 
   const toggleService = useCallback((id: string) => {
     setActiveServices((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
-        // Camera goes to default or last remaining
         const remaining = Array.from(next);
         setLastActiveService(remaining.length > 0 ? remaining[remaining.length - 1] : "default");
       } else {
         next.add(id);
-        setLastActiveService(id); // Camera focuses on newly toggled service
+        setLastActiveService(id);
       }
       return next;
     });
   }, []);
 
-  const cameraTarget = CAMERA_POSITIONS[lastActiveService] || CAMERA_POSITIONS.default;
+  const cameraTarget = cameraPositions[lastActiveService] || cameraPositions.default;
 
   return (
-    <section id="configurator" className="relative py-20 overflow-hidden">
+    <section id="configurator" className="relative py-10 lg:py-20 overflow-hidden">
       {/* BMW M-stripe accent */}
       <div className="absolute top-0 left-0 right-0 h-1 flex">
         <div className="flex-1 bg-[#0066B1]" />
@@ -288,7 +382,7 @@ export default function VehicleVisualizer() {
 
       <div className="relative max-w-[1400px] mx-auto px-4 sm:px-6">
         {/* Header */}
-        <div className="text-center mb-10">
+        <div className="text-center mb-6 lg:mb-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -299,135 +393,169 @@ export default function VehicleVisualizer() {
               <span className="w-1.5 h-1.5 rounded-full bg-rpm-red animate-pulse" />
               3D Configurator
             </span>
-            <h2 className="text-4xl md:text-5xl lg:text-6xl font-black text-rpm-white tracking-tight">
+            <h2 className="text-3xl md:text-5xl lg:text-6xl font-black text-rpm-white tracking-tight">
               Build Your <span className="text-gradient-red">Dream Ride</span>
             </h2>
-            <p className="mt-3 text-rpm-silver text-lg max-w-xl mx-auto">
+            <p className="mt-3 text-rpm-silver text-base lg:text-lg max-w-xl mx-auto">
               Toggle services to see real-time changes. Camera auto-focuses on each modification.
             </p>
           </motion.div>
         </div>
 
         {/* Main Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6">
-          {/* 3D Canvas */}
-          <div className="relative rounded-2xl overflow-hidden border border-rpm-gray/50 bg-rpm-dark h-[500px] lg:h-[600px]">
-            <div className="absolute top-0 left-0 w-24 h-1 flex z-10 rounded-br overflow-hidden">
-              <div className="flex-1 bg-[#0066B1]" />
-              <div className="flex-1 bg-[#1B1464]" />
-              <div className="flex-1 bg-rpm-red" />
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-4 lg:gap-6">
+          {/* 3D Canvas — relative container for mobile overlay */}
+          <div className="relative">
+            <div
+              className="relative rounded-2xl border border-rpm-gray/50 bg-rpm-dark h-[350px] lg:h-[600px]"
+              style={{ touchAction: "none" }}
+            >
+              <div className="absolute top-0 left-0 w-24 h-1 flex z-10 rounded-br overflow-hidden">
+                <div className="flex-1 bg-[#0066B1]" />
+                <div className="flex-1 bg-[#1B1464]" />
+                <div className="flex-1 bg-rpm-red" />
+              </div>
+
+              <Canvas
+                camera={{ position: [5, 2.8, 5.5], fov: 40, near: 0.1, far: 100 }}
+                gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.4 }}
+                style={{ background: "#111111", borderRadius: "1rem" }}
+              >
+                {/* Responsive FOV adjustment */}
+                <ResponsiveCameraConfig />
+
+                {/* Shop/showroom lighting — bright overhead + warm fills */}
+                <ambientLight intensity={0.6} color="#f0f0f0" />
+                <spotLight position={[0, 10, 0]} angle={0.8} penumbra={1} intensity={2.5} color="#ffffff" castShadow />
+                <spotLight position={[6, 6, 6]} angle={0.5} penumbra={0.8} intensity={1.5} color="#fff5e6" />
+                <spotLight position={[-5, 5, -4]} angle={0.5} penumbra={1} intensity={1} color="#e0e8ff" />
+                <spotLight position={[0, 4, -8]} angle={0.4} penumbra={0.6} intensity={1.2} color="#ffffff" />
+
+                <Environment preset="warehouse" />
+
+                <ContactShadows position={[0, 0, 0]} opacity={0.35} scale={18} blur={2} far={8} color="#000000" />
+
+                <AnimatedCamera
+                  targetPos={cameraTarget.position}
+                  targetLookAt={cameraTarget.target}
+                  onAnimating={handleAnimating}
+                />
+
+                <OrbitControls
+                  ref={orbitRef}
+                  enablePan={false}
+                  enableDamping
+                  dampingFactor={0.05}
+                  minDistance={2}
+                  maxDistance={12}
+                  maxPolarAngle={Math.PI / 2.1}
+                  minPolarAngle={0.2}
+                />
+
+                <Suspense fallback={<Loader />}>
+                  <CarModel
+                    activeServices={activeServices}
+                    wrapColor={wrapColor}
+                    tintLevel={tintLevel}
+                  />
+                </Suspense>
+              </Canvas>
+
+              {/* Interaction hint */}
+              <motion.div
+                initial={{ opacity: 1 }}
+                animate={{ opacity: 0 }}
+                transition={{ delay: 5, duration: 1.5 }}
+                className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 px-4 py-2 rounded-full bg-rpm-dark/80 backdrop-blur border border-rpm-gray/50 text-rpm-silver text-xs pointer-events-none"
+              >
+                Click &amp; drag to rotate &bull; Scroll to zoom
+              </motion.div>
+
+              {/* Active service badges */}
+              {activeServices.size > 0 && (
+                <div className="absolute top-4 right-4 z-10 flex flex-wrap gap-1.5 max-w-[200px] justify-end pointer-events-none">
+                  {CONFIGURATOR_SERVICES.filter((s) => activeServices.has(s.id)).map((s) => (
+                    <motion.span
+                      key={s.id}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="px-2.5 py-1 rounded-full bg-rpm-red/20 border border-rpm-red/40 text-rpm-red text-[10px] font-bold uppercase tracking-wider backdrop-blur-sm"
+                    >
+                      {s.name}
+                    </motion.span>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <Canvas
-              camera={{ position: [5, 2.8, 5.5], fov: 40, near: 0.1, far: 100 }}
-              gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.4 }}
-              style={{ background: "#111111" }}
-            >
-              {/* Shop/showroom lighting — bright overhead + warm fills */}
-              <ambientLight intensity={0.6} color="#f0f0f0" />
-              {/* Main overhead key light — like shop fluorescents */}
-              <spotLight
-                position={[0, 10, 0]}
-                angle={0.8}
-                penumbra={1}
-                intensity={2.5}
-                color="#ffffff"
-                castShadow
-              />
-              {/* Front fill — slightly warm */}
-              <spotLight
-                position={[6, 6, 6]}
-                angle={0.5}
-                penumbra={0.8}
-                intensity={1.5}
-                color="#fff5e6"
-              />
-              {/* Back fill — cool accent */}
-              <spotLight
-                position={[-5, 5, -4]}
-                angle={0.5}
-                penumbra={1}
-                intensity={1}
-                color="#e0e8ff"
-              />
-              {/* Rim/edge light from behind */}
-              <spotLight
-                position={[0, 4, -8]}
-                angle={0.4}
-                penumbra={0.6}
-                intensity={1.2}
-                color="#ffffff"
-              />
+            {/* ── Mobile Bottom Sheet Overlay ── */}
+            {isMobile && (
+              <div className="absolute bottom-0 left-0 right-0 z-20">
+                {/* Toggle handle */}
+                <button
+                  onClick={() => setMobileSheetOpen((o) => !o)}
+                  className="mx-auto flex flex-col items-center w-full pt-2 pb-1"
+                >
+                  <div className="w-10 h-1 rounded-full bg-rpm-silver/40 mb-1" />
+                  <span className="text-[10px] text-rpm-silver uppercase tracking-wider">
+                    {mobileSheetOpen ? "Hide Services" : "Show Services"}
+                  </span>
+                </button>
 
-              {/* Warehouse environment for realistic reflections */}
-              <Environment preset="warehouse" />
+                <AnimatePresence>
+                  {mobileSheetOpen && (
+                    <motion.div
+                      initial={{ y: 60, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      exit={{ y: 60, opacity: 0 }}
+                      transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                      className="bg-rpm-dark/95 backdrop-blur-xl border-t border-rpm-gray/50 rounded-t-2xl px-3 pb-3 pt-2"
+                    >
+                      {/* Horizontal scrollable service pills */}
+                      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none -mx-1 px-1">
+                        {CONFIGURATOR_SERVICES.map((service) => {
+                          const isActive = activeServices.has(service.id);
+                          return (
+                            <button
+                              key={service.id}
+                              onClick={() => toggleService(service.id)}
+                              className={cn(
+                                "flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold transition-all duration-200 border whitespace-nowrap",
+                                isActive
+                                  ? "bg-rpm-red/15 border-rpm-red/40 text-rpm-red"
+                                  : "bg-rpm-charcoal/60 border-rpm-gray/40 text-rpm-silver"
+                              )}
+                            >
+                              <ServiceIcon type={service.icon} className="w-3.5 h-3.5" />
+                              {service.name}
+                              <span className={cn("font-bold", isActive ? "text-rpm-red" : "text-rpm-silver/70")}>${service.price}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
 
-              {/* Ground shadow only — no visible floor plane */}
-              <ContactShadows
-                position={[0, 0, 0]}
-                opacity={0.35}
-                scale={18}
-                blur={2}
-                far={8}
-                color="#000000"
-              />
-
-              {/* Animated camera that moves to service focus points */}
-              <AnimatedCamera
-                targetPos={cameraTarget.position}
-                targetLookAt={cameraTarget.target}
-              />
-
-              {/* Orbit controls — user can still manually orbit */}
-              <OrbitControls
-                enablePan={false}
-                enableDamping
-                dampingFactor={0.05}
-                minDistance={2}
-                maxDistance={12}
-                maxPolarAngle={Math.PI / 2.1}
-                minPolarAngle={0.2}
-              />
-
-              {/* Car model */}
-              <Suspense fallback={<Loader />}>
-                <CarModel
-                  activeServices={activeServices}
-                  wrapColor={wrapColor}
-                  tintLevel={tintLevel}
-                />
-              </Suspense>
-            </Canvas>
-
-            {/* Interaction hint */}
-            <motion.div
-              initial={{ opacity: 1 }}
-              animate={{ opacity: 0 }}
-              transition={{ delay: 5, duration: 1.5 }}
-              className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 px-4 py-2 rounded-full bg-rpm-dark/80 backdrop-blur border border-rpm-gray/50 text-rpm-silver text-xs pointer-events-none"
-            >
-              Click &amp; drag to rotate &bull; Scroll to zoom
-            </motion.div>
-
-            {/* Active service badges */}
-            {activeServices.size > 0 && (
-              <div className="absolute top-4 right-4 z-10 flex flex-wrap gap-1.5 max-w-[200px] justify-end pointer-events-none">
-                {CONFIGURATOR_SERVICES.filter((s) => activeServices.has(s.id)).map((s) => (
-                  <motion.span
-                    key={s.id}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="px-2.5 py-1 rounded-full bg-rpm-red/20 border border-rpm-red/40 text-rpm-red text-[10px] font-bold uppercase tracking-wider backdrop-blur-sm"
-                  >
-                    {s.name}
-                  </motion.span>
-                ))}
+                      {/* Inline sub-controls for window tint / wraps on mobile */}
+                      <AnimatePresence>
+                        {activeServices.has("window-tint") && (
+                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                            <div className="pt-2 pb-1"><TintSlider tintLevel={tintLevel} onTintChange={setTintLevel} /></div>
+                          </motion.div>
+                        )}
+                        {activeServices.has("vehicle-wraps") && (
+                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                            <div className="pt-2 pb-1"><ColorPicker selectedColor={wrapColor} onColorChange={setWrapColor} /></div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             )}
           </div>
 
-          {/* Service Panel */}
-          <div className="rounded-2xl border border-rpm-gray/50 bg-rpm-dark/80 backdrop-blur-xl p-6 flex flex-col">
+          {/* Service Panel — desktop only (hidden on mobile, shown as overlay above) */}
+          <div className="hidden lg:flex rounded-2xl border border-rpm-gray/50 bg-rpm-dark/80 backdrop-blur-xl p-6 flex-col">
             <div className="mb-5">
               <h3 className="text-lg font-bold text-rpm-white">Customize Services</h3>
               <p className="text-xs text-rpm-silver mt-1">Toggle services — camera auto-focuses on each area</p>
@@ -486,7 +614,7 @@ export default function VehicleVisualizer() {
               })}
             </div>
 
-            {/* Total */}
+            {/* Total — desktop */}
             <div className="mt-4 pt-4 border-t border-rpm-gray/50">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-semibold uppercase tracking-wider text-rpm-silver">Estimated Total</span>
@@ -501,6 +629,21 @@ export default function VehicleVisualizer() {
             </div>
           </div>
         </div>
+
+        {/* ── Mobile Sticky Total + CTA ── */}
+        {isMobile && (
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-rpm-dark/95 backdrop-blur-xl border-t border-rpm-gray/50 px-4 py-3 safe-bottom">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-rpm-silver">Estimated Total</span>
+              <motion.span key={estimatedTotal} initial={{ scale: 1.2, color: "#ef4444" }} animate={{ scale: 1, color: estimatedTotal > 0 ? "#dc2626" : "#8a8a8a" }} className="text-xl font-black">
+                ${estimatedTotal.toLocaleString()}{estimatedTotal > 0 && <span className="text-sm font-medium">+</span>}
+              </motion.span>
+            </div>
+            <a href="/rpm-auto-lab/contact" className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-rpm-red text-white font-bold uppercase tracking-wider text-sm transition-all duration-300 hover:shadow-[0_0_30px_rgba(220,38,38,0.4)] hover:bg-rpm-red-dark">
+              Get This Package Quoted
+            </a>
+          </div>
+        )}
       </div>
     </section>
   );

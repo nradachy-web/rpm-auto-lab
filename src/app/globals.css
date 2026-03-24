@@ -264,3 +264,17 @@ body {
 .social-glow-red:hover {
   box-shadow: 0 0 12px rgba(220, 38, 38, 0.5), 0 0 24px rgba(220, 38, 38, 0.2);
 }
+
+/* Hide scrollbar but keep scrolling */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Safe area bottom padding for fixed elements on notched phones */
+.safe-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
