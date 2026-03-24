@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  phone         String?
+  passwordHash  String
+  role          Role      @default(CUSTOMER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  vehicles      Vehicle[]
+  quotes        Quote[]
+  jobs          Job[]
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+model Vehicle {
+  id        String   @id @default(cuid())
+  userId    String
+  year      Int
+  make      String
+  model     String
+  trim      String?
+  color     String?
+  vin       String?
+  createdAt DateTime @default(now())
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quotes Quote[]
+  jobs   Job[]
+}
+
+model Quote {
+  id        String      @id @default(cuid())
+  userId    String?
+  vehicleId String?
+  status    QuoteStatus @default(PENDING)
+
+  // Contact info (for non-logged-in users)
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+
+  // Vehicle info (for non-logged-in users)
+  vehicleYear  Int?
+  vehicleMake  String?
+  vehicleModel String?
+
+  services  String[]   // array of service IDs
+  notes     String?
+  total     Float?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  vehicle Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  job     Job?
+}
+
+enum QuoteStatus {
+  PENDING
+  REVIEWED
+  APPROVED
+  DECLINED
+  EXPIRED
+}
+
+model Job {
+  id        String    @id @default(cuid())
+  userId    String
+  vehicleId String
+  quoteId   String?   @unique
+  status    JobStatus @default(SCHEDULED)
+  services  String[]
+  notes     String?
+  total     Float?
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehicle Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  quote   Quote?   @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  photos  JobPhoto[]
+}
+
+enum JobStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  PICKED_UP
+}
+
+model JobPhoto {
+  id        String   @id @default(cuid())
+  jobId     String
+  url       String
+  caption   String?
+  isBefore  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+}
+
+model GalleryItem {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  service     String
+  vehicleInfo String?
+  beforeUrl   String?
+  afterUrl    String
+  featured    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}

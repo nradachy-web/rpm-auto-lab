@@ -1,0 +1,235 @@
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  LayoutDashboard,
+  Car,
+  Wrench,
+  FileText,
+  Settings,
+  LogOut,
+  ChevronRight,
+} from 'lucide-react';
+
+const portalNav = [
+  { href: '/portal/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/portal/vehicles', label: 'My Vehicles', icon: Car },
+  { href: '/portal/jobs', label: 'My Jobs', icon: Wrench },
+  { href: '/portal/quotes', label: 'Quotes', icon: FileText },
+  { href: '/portal/settings', label: 'Settings', icon: Settings },
+];
+
+export default function PortalLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  return (
+    <div className="flex min-h-screen bg-rpm-black">
+      {/* Desktop Sidebar */}
+      <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-rpm-charcoal border-r border-rpm-gray/50 fixed inset-y-0 left-0 z-40">
+        {/* Logo */}
+        <Link
+          href="/"
+          className="flex items-center gap-3 px-6 py-5 border-b border-rpm-gray/50"
+        >
+          <div className="w-8 h-8 rounded-lg bg-rpm-red flex items-center justify-center font-bold text-white text-sm">
+            R
+          </div>
+          <span className="text-rpm-white font-bold text-lg tracking-wide">
+            RPM Auto Lab
+          </span>
+        </Link>
+
+        {/* Nav Links */}
+        <nav className="flex-1 px-3 py-4 space-y-1">
+          {portalNav.map((item) => {
+            const isActive =
+              pathname === item.href || pathname?.startsWith(item.href + '/');
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200',
+                  isActive
+                    ? 'bg-rpm-red/10 text-rpm-red border border-rpm-red/20'
+                    : 'text-rpm-silver hover:text-rpm-white hover:bg-rpm-gray/50'
+                )}
+              >
+                <item.icon className="w-5 h-5" />
+                {item.label}
+                {isActive && (
+                  <ChevronRight className="w-4 h-4 ml-auto" />
+                )}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* User Section */}
+        <div className="px-4 py-4 border-t border-rpm-gray/50">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-9 h-9 rounded-full bg-rpm-gray flex items-center justify-center text-rpm-white font-semibold text-sm">
+              MJ
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-rpm-white truncate">
+                Marcus Johnson
+              </p>
+              <p className="text-xs text-rpm-silver truncate">
+                marcus.johnson@gmail.com
+              </p>
+            </div>
+          </div>
+          <button className="flex items-center gap-2 w-full px-3 py-2 text-sm text-rpm-silver hover:text-rpm-red transition-colors rounded-lg hover:bg-rpm-gray/30 cursor-pointer">
+            <LogOut className="w-4 h-4" />
+            Sign Out
+          </button>
+        </div>
+      </aside>
+
+      {/* Mobile Header */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-rpm-charcoal border-b border-rpm-gray/50 px-4 py-3 flex items-center justify-between">
+        <Link href="/" className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-rpm-red flex items-center justify-center font-bold text-white text-xs">
+            R
+          </div>
+          <span className="text-rpm-white font-bold tracking-wide">
+            RPM Auto Lab
+          </span>
+        </Link>
+        <button
+          onClick={() => setMobileOpen(!mobileOpen)}
+          className="text-rpm-silver hover:text-rpm-white p-2 cursor-pointer"
+          aria-label="Toggle menu"
+        >
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            {mobileOpen ? (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            ) : (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            )}
+          </svg>
+        </button>
+      </div>
+
+      {/* Mobile Slide-out Menu */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="lg:hidden fixed inset-0 bg-black/60 z-40"
+              onClick={() => setMobileOpen(false)}
+            />
+            <motion.div
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-rpm-charcoal border-r border-rpm-gray/50 flex flex-col"
+            >
+              <div className="px-6 py-5 border-b border-rpm-gray/50 flex items-center justify-between">
+                <span className="text-rpm-white font-bold text-lg tracking-wide">
+                  Portal
+                </span>
+                <button
+                  onClick={() => setMobileOpen(false)}
+                  className="text-rpm-silver hover:text-rpm-white cursor-pointer"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <nav className="flex-1 px-3 py-4 space-y-1">
+                {portalNav.map((item) => {
+                  const isActive =
+                    pathname === item.href ||
+                    pathname?.startsWith(item.href + '/');
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMobileOpen(false)}
+                      className={cn(
+                        'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200',
+                        isActive
+                          ? 'bg-rpm-red/10 text-rpm-red border border-rpm-red/20'
+                          : 'text-rpm-silver hover:text-rpm-white hover:bg-rpm-gray/50'
+                      )}
+                    >
+                      <item.icon className="w-5 h-5" />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+              <div className="px-4 py-4 border-t border-rpm-gray/50">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-9 h-9 rounded-full bg-rpm-gray flex items-center justify-center text-rpm-white font-semibold text-sm">
+                    MJ
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-rpm-white truncate">
+                      Marcus Johnson
+                    </p>
+                  </div>
+                </div>
+                <button className="flex items-center gap-2 w-full px-3 py-2 text-sm text-rpm-silver hover:text-rpm-red transition-colors rounded-lg hover:bg-rpm-gray/30 cursor-pointer">
+                  <LogOut className="w-4 h-4" />
+                  Sign Out
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile Bottom Tab Bar */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-rpm-charcoal border-t border-rpm-gray/50 px-2 py-1">
+        <nav className="flex items-center justify-around">
+          {portalNav.slice(0, 4).map((item) => {
+            const isActive =
+              pathname === item.href || pathname?.startsWith(item.href + '/');
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  'flex flex-col items-center gap-1 px-3 py-2 text-xs font-medium transition-colors',
+                  isActive ? 'text-rpm-red' : 'text-rpm-silver'
+                )}
+              >
+                <item.icon className="w-5 h-5" />
+                <span>{item.label.replace('My ', '')}</span>
+              </Link>
+            );
+          })}
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="flex flex-col items-center gap-1 px-3 py-2 text-xs font-medium text-rpm-silver cursor-pointer"
+          >
+            <Settings className="w-5 h-5" />
+            <span>More</span>
+          </button>
+        </nav>
+      </div>
+
+      {/* Main Content */}
+      <main className="flex-1 lg:ml-64 pt-14 pb-20 lg:pt-0 lg:pb-0 min-h-screen">
+        <div className="p-4 sm:p-6 lg:p-8">{children}</div>
+      </main>
+    </div>
+  );
+}

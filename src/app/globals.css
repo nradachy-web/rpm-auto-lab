@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+@theme {
+  /* RPM Auto Lab Brand Colors */
+  --color-rpm-black: #0a0a0a;
+  --color-rpm-dark: #111111;
+  --color-rpm-charcoal: #1a1a1a;
+  --color-rpm-gray: #2a2a2a;
+  --color-rpm-silver: #8a8a8a;
+  --color-rpm-light: #e5e5e5;
+  --color-rpm-white: #fafafa;
+  --color-rpm-red: #dc2626;
+  --color-rpm-red-dark: #991b1b;
+  --color-rpm-red-glow: #ef4444;
+  --color-rpm-orange: #f97316;
+
+  --font-heading: "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+}
+
+/* Base styles */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-rpm-black);
+  color: var(--color-rpm-light);
+  font-family: var(--font-body);
+  overflow-x: hidden;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-rpm-dark);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-rpm-gray);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-rpm-silver);
+}
+
+::selection {
+  background: var(--color-rpm-red);
+  color: white;
+}
+
+/* Utility classes */
+.glow-red {
+  box-shadow: 0 0 20px rgba(220, 38, 38, 0.3), 0 0 60px rgba(220, 38, 38, 0.1);
+}
+.glow-red-hover:hover {
+  box-shadow: 0 0 30px rgba(220, 38, 38, 0.5), 0 0 80px rgba(220, 38, 38, 0.2);
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, var(--color-rpm-white) 0%, var(--color-rpm-silver) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.text-gradient-red {
+  background: linear-gradient(135deg, var(--color-rpm-red) 0%, var(--color-rpm-orange) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Grain overlay */
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.05) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 3s infinite;
+}
+
+@keyframes line-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.line-grow {
+  transform-origin: left;
+  animation: line-grow 1s ease-out forwards;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.float {
+  animation: float 6s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
