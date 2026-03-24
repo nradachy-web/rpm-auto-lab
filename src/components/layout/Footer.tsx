@@ -49,13 +49,23 @@ export default function Footer() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="relative bg-rpm-charcoal border-t border-rpm-gray/30">
-      {/* M-stripe accent line at top */}
-      <div className="m-stripe h-[2px]">
+    <footer className="relative bg-rpm-charcoal border-t border-rpm-gray/30 diagonal-bg overflow-hidden">
+      {/* M-stripe accent line at top — more prominent */}
+      <div className="m-stripe h-[4px]">
         <div /><div /><div />
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      {/* Large faded RPM watermark */}
+      <div
+        className="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden"
+        aria-hidden="true"
+      >
+        <span className="text-[200px] font-black tracking-tighter text-rpm-white/[0.02] leading-none">
+          RPM
+        </span>
+      </div>
+
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 relative z-10">
         {/* Main footer grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 lg:gap-8 py-16">
           {/* Column 1: Brand */}
@@ -76,10 +86,10 @@ export default function Footer() {
                 className="invert brightness-200 transition-transform duration-300 group-hover:scale-105"
               />
               <div>
-                <span className="text-lg font-bold tracking-wider text-rpm-white">
+                <span className="text-lg font-black tracking-tight text-rpm-white">
                   RPM
                 </span>
-                <span className="text-lg font-light tracking-wider text-rpm-silver ml-1">
+                <span className="text-lg text-thin tracking-wide text-rpm-silver ml-1.5">
                   Auto Lab
                 </span>
               </div>
@@ -93,13 +103,13 @@ export default function Footer() {
               wraps.
             </p>
 
-            {/* Social icons */}
+            {/* Social icons with M-stripe glow colors */}
             <div className="flex items-center gap-3 mt-5">
               <a
                 href={BRAND.social.instagram}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-9 h-9 flex items-center justify-center rounded-lg bg-rpm-gray/40 text-rpm-silver hover:bg-rpm-red hover:text-white transition-all duration-300"
+                className="w-9 h-9 flex items-center justify-center rounded-lg bg-rpm-gray/40 text-rpm-silver hover:bg-m-blue hover:text-white transition-all duration-300 social-glow-blue"
                 aria-label="Instagram"
               >
                 <InstagramIcon className="w-4 h-4" />
@@ -108,7 +118,7 @@ export default function Footer() {
                 href={BRAND.social.facebook}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-9 h-9 flex items-center justify-center rounded-lg bg-rpm-gray/40 text-rpm-silver hover:bg-rpm-red hover:text-white transition-all duration-300"
+                className="w-9 h-9 flex items-center justify-center rounded-lg bg-rpm-gray/40 text-rpm-silver hover:bg-m-red hover:text-white transition-all duration-300 social-glow-red"
                 aria-label="Facebook"
               >
                 <FacebookIcon className="w-4 h-4" />
@@ -132,7 +142,7 @@ export default function Footer() {
                 <li key={service.id}>
                   <Link
                     href={`/services#${service.id}`}
-                    className="group flex items-center gap-2 text-sm text-rpm-silver/70 hover:text-rpm-white transition-colors duration-200"
+                    className="group flex items-center gap-2 text-sm text-rpm-silver/70 hover:text-rpm-white transition-colors duration-200 footer-link-hover"
                   >
                     <ChevronRight className="w-3 h-3 text-rpm-red/50 group-hover:text-rpm-red transition-colors duration-200" />
                     {service.name}
@@ -158,7 +168,7 @@ export default function Footer() {
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="group flex items-center gap-2 text-sm text-rpm-silver/70 hover:text-rpm-white transition-colors duration-200"
+                    className="group flex items-center gap-2 text-sm text-rpm-silver/70 hover:text-rpm-white transition-colors duration-200 footer-link-hover"
                   >
                     <ChevronRight className="w-3 h-3 text-rpm-red/50 group-hover:text-rpm-red transition-colors duration-200" />
                     {link.label}
@@ -168,7 +178,7 @@ export default function Footer() {
               <li>
                 <Link
                   href="/login"
-                  className="group flex items-center gap-2 text-sm text-rpm-silver/70 hover:text-rpm-white transition-colors duration-200"
+                  className="group flex items-center gap-2 text-sm text-rpm-silver/70 hover:text-rpm-white transition-colors duration-200 footer-link-hover"
                 >
                   <ChevronRight className="w-3 h-3 text-rpm-red/50 group-hover:text-rpm-red transition-colors duration-200" />
                   Client Portal
@@ -235,11 +245,17 @@ export default function Footer() {
           </motion.div>
         </div>
 
-        {/* Bottom bar */}
+        {/* Bottom bar — enhanced */}
         <div className="border-t border-rpm-gray/20 py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-rpm-silver/40">
-            &copy; {currentYear} {BRAND.name}. All rights reserved.
-          </p>
+          <div className="flex flex-col sm:flex-row items-center gap-2">
+            <p className="text-xs text-rpm-silver/40">
+              &copy; {currentYear} {BRAND.name}. All rights reserved.
+            </p>
+            <span className="hidden sm:inline text-xs text-rpm-silver/20">|</span>
+            <p className="text-xs text-rpm-silver/30 italic">
+              Crafted with precision in Southeast Michigan
+            </p>
+          </div>
           <div className="flex items-center gap-4">
             {footerLinks.map((link) => (
               <Link

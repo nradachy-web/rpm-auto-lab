@@ -40,13 +40,24 @@ export default function Navbar() {
         className={cn(
           "fixed top-[3px] left-0 right-0 z-50 transition-all duration-500",
           scrolled
-            ? "bg-rpm-dark/95 backdrop-blur-md shadow-lg shadow-black/20 border-b border-rpm-gray/30"
-            : "bg-transparent"
+            ? "bg-rpm-dark/95 backdrop-blur-xl shadow-lg shadow-black/20"
+            : "bg-transparent backdrop-blur-md"
         )}
       >
+        {/* M-stripe gradient bottom border — only visible when scrolled */}
+        <div
+          className={cn(
+            "absolute bottom-0 left-0 right-0 h-[1px] transition-opacity duration-500",
+            scrolled ? "opacity-100" : "opacity-0"
+          )}
+          style={{
+            background: "linear-gradient(90deg, var(--color-m-blue), var(--color-m-indigo), var(--color-m-red))",
+          }}
+        />
+
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-20 items-center justify-between">
-            {/* Logo */}
+            {/* Logo — dramatic weight contrast */}
             <Link href="/" className="relative flex items-center gap-3 group">
               <Image
                 src="/logo.png"
@@ -57,10 +68,10 @@ export default function Navbar() {
                 priority
               />
               <div className="hidden sm:block">
-                <span className="text-lg font-bold tracking-wider text-rpm-white">
+                <span className="text-xl font-black tracking-tight text-rpm-white">
                   RPM
                 </span>
-                <span className="text-lg font-light tracking-wider text-rpm-silver ml-1">
+                <span className="text-xl text-thin tracking-wide text-rpm-silver ml-1.5">
                   Auto Lab
                 </span>
               </div>
@@ -75,28 +86,24 @@ export default function Navbar() {
                     key={link.href}
                     href={link.href}
                     className={cn(
-                      "relative px-4 py-2 text-sm font-medium tracking-wide uppercase transition-colors duration-300",
+                      "relative px-4 py-2 text-sm font-medium tracking-wide uppercase transition-colors duration-300 group/nav",
                       isActive
                         ? "text-rpm-white"
                         : "text-rpm-silver hover:text-rpm-white"
                     )}
                   >
                     {link.label}
-                    {/* Underline indicator */}
-                    <span
-                      className={cn(
-                        "absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 bg-rpm-red transition-all duration-300",
-                        isActive ? "w-6" : "w-0 group-hover:w-0"
-                      )}
-                    />
-                    {/* Hover underline */}
+                    {/* Active: M-stripe bar */}
+                    {isActive && (
+                      <span className="nav-m-bar w-6 left-1/2 -translate-x-1/2">
+                        <span /><span /><span />
+                      </span>
+                    )}
+                    {/* Hover: M-stripe bar slides in from left */}
                     {!isActive && (
-                      <motion.span
-                        className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 bg-rpm-red/60"
-                        initial={{ width: 0 }}
-                        whileHover={{ width: "60%" }}
-                        transition={{ duration: 0.25 }}
-                      />
+                      <span className="nav-m-bar w-0 group-hover/nav:w-3/5 transition-all duration-300 ease-out">
+                        <span /><span /><span />
+                      </span>
                     )}
                   </Link>
                 );
@@ -114,7 +121,7 @@ export default function Navbar() {
 
               <Link
                 href="/contact"
-                className="hidden lg:inline-flex items-center gap-2 bg-rpm-red hover:bg-rpm-red-dark text-white text-sm font-semibold px-5 py-2.5 rounded tracking-wide uppercase transition-all duration-300 glow-red-hover"
+                className="hidden lg:inline-flex items-center gap-2 bg-rpm-red hover:bg-rpm-red-dark text-white text-sm font-semibold px-5 py-2.5 rounded tracking-wide uppercase transition-all duration-300 cta-pulse"
               >
                 <Phone className="w-4 h-4" />
                 Get a Quote
@@ -169,15 +176,20 @@ export default function Navbar() {
               onClick={() => setMobileOpen(false)}
             />
 
-            {/* Drawer */}
+            {/* Drawer — M-stripe accent on left edge */}
             <motion.div
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="fixed top-0 right-0 z-50 h-full w-80 max-w-[85vw] bg-rpm-dark border-l border-rpm-gray/30 shadow-2xl"
+              className="fixed top-0 right-0 z-50 h-full w-80 max-w-[85vw] bg-rpm-dark shadow-2xl flex"
             >
-              <div className="flex flex-col h-full">
+              {/* M-stripe left edge accent */}
+              <div className="m-stripe-vertical w-[3px] shrink-0">
+                <div /><div /><div />
+              </div>
+
+              <div className="flex flex-col h-full flex-1 border-l border-rpm-gray/10">
                 {/* Drawer header */}
                 <div className="flex items-center justify-between px-6 py-5 border-b border-rpm-gray/30">
                   <div className="flex items-center gap-3">
@@ -188,9 +200,14 @@ export default function Navbar() {
                       height={36}
                       className="invert brightness-200"
                     />
-                    <span className="text-sm font-bold tracking-wider text-rpm-white uppercase">
-                      {BRAND.name}
-                    </span>
+                    <div>
+                      <span className="text-sm font-black tracking-tight text-rpm-white uppercase">
+                        RPM
+                      </span>
+                      <span className="text-sm text-thin tracking-wide text-rpm-silver ml-1">
+                        Auto Lab
+                      </span>
+                    </div>
                   </div>
                   <button
                     onClick={() => setMobileOpen(false)}

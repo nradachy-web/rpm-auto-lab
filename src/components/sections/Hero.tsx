@@ -4,136 +4,95 @@ import { motion } from "framer-motion";
 import Button from "@/components/ui/Button";
 import { ChevronDown } from "lucide-react";
 
-function FloatingShape({
-  size,
-  x,
-  y,
-  delay,
-  duration,
-  rotate,
-}: {
-  size: number;
-  x: string;
-  y: string;
-  delay: number;
-  duration: number;
-  rotate: number;
-}) {
-  return (
-    <motion.div
-      className="absolute border border-rpm-red/10 rounded-sm"
-      style={{ width: size, height: size, left: x, top: y }}
-      animate={{
-        y: [0, -30, 0],
-        rotate: [0, rotate, 0],
-        opacity: [0.15, 0.3, 0.15],
-      }}
-      transition={{
-        duration,
-        delay,
-        repeat: Infinity,
-        ease: "easeInOut",
-      }}
-    />
-  );
-}
-
-const shapes = [
-  { size: 40, x: "10%", y: "20%", delay: 0, duration: 8, rotate: 90 },
-  { size: 60, x: "80%", y: "15%", delay: 1.5, duration: 10, rotate: -120 },
-  { size: 30, x: "70%", y: "60%", delay: 0.8, duration: 7, rotate: 180 },
-  { size: 50, x: "15%", y: "70%", delay: 2, duration: 9, rotate: -90 },
-  { size: 25, x: "50%", y: "30%", delay: 0.5, duration: 6, rotate: 60 },
-  { size: 35, x: "90%", y: "45%", delay: 1, duration: 8, rotate: -150 },
-  { size: 45, x: "30%", y: "80%", delay: 1.8, duration: 11, rotate: 120 },
-  { size: 20, x: "60%", y: "85%", delay: 0.3, duration: 7, rotate: -60 },
-];
-
 export default function Hero() {
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden grain">
-      {/* Background gradient */}
-      <div className="absolute inset-0 bg-gradient-to-b from-rpm-black via-rpm-dark to-rpm-black" />
+    <section className="relative min-h-screen flex items-center overflow-hidden grain">
+      {/* Diagonal gradient background — NOT flat black */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[#0d0d0d] via-rpm-dark to-[#0f0f0f]" />
 
-      {/* Red radial glow */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(220,38,38,0.08)_0%,transparent_70%)]" />
+      {/* Diagonal slash element */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          clipPath: "polygon(60% 0, 100% 0, 100% 100%, 40% 100%)",
+          background: "rgba(220, 38, 38, 0.03)",
+        }}
+      />
 
-      {/* M-colored ambient glows */}
-      <div className="absolute top-1/4 left-0 w-1/3 h-1/2 bg-[radial-gradient(ellipse_at_center,rgba(0,102,177,0.04)_0%,transparent_70%)] pointer-events-none" />
-      <div className="absolute bottom-1/4 right-0 w-1/3 h-1/2 bg-[radial-gradient(ellipse_at_center,rgba(220,38,38,0.04)_0%,transparent_70%)] pointer-events-none" />
+      {/* Subtle ambient glows */}
+      <div className="absolute top-0 left-0 w-2/3 h-full bg-[radial-gradient(ellipse_at_20%_30%,rgba(0,102,177,0.04)_0%,transparent_60%)] pointer-events-none" />
+      <div className="absolute bottom-0 right-0 w-1/2 h-2/3 bg-[radial-gradient(ellipse_at_80%_70%,rgba(220,38,38,0.04)_0%,transparent_60%)] pointer-events-none" />
 
-      {/* Floating geometric shapes */}
-      {shapes.map((shape, i) => (
-        <FloatingShape key={i} {...shape} />
-      ))}
-
-      {/* Content */}
-      <div className="relative z-10 max-w-5xl mx-auto px-6 text-center">
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1, ease: [0.25, 0.46, 0.45, 0.94] }}
-        >
+      {/* Content — asymmetric layout */}
+      <div className="relative z-10 w-full max-w-[1400px] mx-auto px-6 md:px-12 lg:px-20 grid grid-cols-1 lg:grid-cols-5 gap-12 items-center">
+        {/* LEFT SIDE — 60% */}
+        <div className="lg:col-span-3">
+          {/* Small label */}
           <motion.p
-            className="text-rpm-red text-sm md:text-base font-semibold uppercase tracking-[0.3em] mb-6"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+            className="text-rpm-silver/70 text-xs md:text-sm font-light uppercase tracking-[0.4em] mb-8"
+            initial={{ opacity: 0, x: -30 }}
+            animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
           >
-            Orion Township, MI
+            Revive &bull; Protect &bull; Maintain
           </motion.p>
 
-          <h1 className="text-6xl md:text-7xl lg:text-8xl xl:text-9xl font-bold leading-[0.9] tracking-tight mb-8">
+          {/* Main heading with dramatic weight contrast */}
+          <h1 className="leading-[0.95] mb-8">
             <motion.span
-              className="block text-rpm-white"
+              className="block text-4xl sm:text-5xl md:text-6xl font-thin text-rpm-white tracking-tight"
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.3 }}
             >
-              Your Vehicle
+              YOUR VEHICLE
             </motion.span>
             <motion.span
-              className="block text-rpm-white"
+              className="block text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-black text-rpm-white tracking-tight"
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.4 }}
+              transition={{ duration: 0.8, delay: 0.45 }}
             >
-              Deserves
+              DESERVES
             </motion.span>
             <motion.span
-              className="block text-gradient-red"
+              className="block text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-black text-gradient-red tracking-tight"
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.5 }}
+              transition={{ duration: 0.8, delay: 0.55 }}
             >
-              More Than Stock
+              MORE.
             </motion.span>
           </h1>
 
-          <motion.p
-            className="text-lg md:text-xl text-rpm-silver max-w-2xl mx-auto mb-10 leading-relaxed"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.7 }}
-          >
-            Oakland County&apos;s Premier Auto Protection Lab
-          </motion.p>
-
-          {/* M-stripe accent */}
+          {/* M-stripe accent line */}
           <motion.div
-            className="mx-auto mb-8 w-32 m-stripe h-[2px] rounded-full overflow-hidden"
+            className="w-10 m-stripe h-[3px] rounded-full overflow-hidden mb-6"
             initial={{ opacity: 0, scaleX: 0 }}
             animate={{ opacity: 1, scaleX: 1 }}
-            transition={{ duration: 0.8, delay: 0.8 }}
+            transition={{ duration: 0.6, delay: 0.7 }}
+            style={{ transformOrigin: "left" }}
           >
             <div /><div /><div />
           </motion.div>
 
-          <motion.div
-            className="flex flex-col sm:flex-row gap-4 justify-center items-center"
+          {/* Subtitle */}
+          <motion.p
+            className="text-rpm-silver text-base md:text-lg max-w-xs leading-relaxed mb-10"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.9 }}
+            transition={{ duration: 0.8, delay: 0.8 }}
+          >
+            Oakland County&apos;s premier auto protection lab.
+            Ceramic coatings, PPF, tint &amp; wraps — done right.
+          </motion.p>
+
+          {/* CTAs */}
+          <motion.div
+            className="flex flex-col sm:flex-row gap-4"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.95 }}
           >
             <Button href="/contact" variant="primary" size="lg">
               Get Your Free Quote
@@ -142,7 +101,68 @@ export default function Hero() {
               Explore Services
             </Button>
           </motion.div>
-        </motion.div>
+        </div>
+
+        {/* RIGHT SIDE — 40% — abstract tachometer ring */}
+        <div className="lg:col-span-2 hidden lg:flex items-center justify-center">
+          <motion.div
+            className="relative w-[340px] h-[340px] xl:w-[420px] xl:h-[420px]"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 1.2, delay: 0.5 }}
+          >
+            {/* Outer rotating ring with M-stripe gradient */}
+            <motion.div
+              className="absolute inset-0 rounded-full"
+              style={{
+                background: "conic-gradient(from 0deg, #0066B1, #1B1464, #DC2626, #0066B1)",
+                opacity: 0.25,
+              }}
+              animate={{ rotate: 360 }}
+              transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+            />
+            {/* Inner cutout to make it a ring */}
+            <div className="absolute inset-[3px] rounded-full bg-gradient-to-br from-[#0d0d0d] to-rpm-dark" />
+
+            {/* Inner decorative ring */}
+            <div className="absolute inset-[30px] rounded-full border border-rpm-gray/20" />
+
+            {/* Tick marks around the ring — tachometer style */}
+            {Array.from({ length: 24 }).map((_, i) => (
+              <div
+                key={i}
+                className="absolute top-1/2 left-1/2 h-[2px] origin-left"
+                style={{
+                  width: i % 3 === 0 ? "18px" : "10px",
+                  transform: `rotate(${i * 15}deg) translateX(${140}px)`,
+                  background:
+                    i >= 16
+                      ? "rgba(220, 38, 38, 0.6)"
+                      : "rgba(138, 138, 138, 0.3)",
+                }}
+              />
+            ))}
+
+            {/* Center RPM text */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-5xl xl:text-6xl font-black text-rpm-white/10 tracking-wider">
+                RPM
+              </span>
+              <span className="text-[10px] uppercase tracking-[0.3em] text-rpm-silver/30 mt-1">
+                Auto Lab
+              </span>
+            </div>
+
+            {/* Red glow at the "redline" zone */}
+            <div
+              className="absolute inset-0 rounded-full pointer-events-none"
+              style={{
+                background:
+                  "conic-gradient(from 240deg, transparent 0deg, rgba(220,38,38,0.08) 40deg, transparent 80deg)",
+              }}
+            />
+          </motion.div>
+        </div>
       </div>
 
       {/* Scroll indicator */}
@@ -151,7 +171,7 @@ export default function Hero() {
         animate={{ y: [0, 12, 0] }}
         transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
       >
-        <ChevronDown className="w-8 h-8 text-rpm-silver/50" />
+        <ChevronDown className="w-8 h-8 text-rpm-silver/40" />
       </motion.div>
     </section>
   );
