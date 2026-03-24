@@ -7,6 +7,7 @@ interface VehicleSelection {
   year: number;
   make: string;
   model: string;
+  trim: string;
 }
 
 interface VehicleSearchProps {
@@ -27,35 +28,38 @@ const selectClasses =
 const spinnerClasses =
   "absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin rounded-full border-2 border-rpm-silver border-t-rpm-red";
 
-// Only show mainstream consumer brands customers would actually have
-const MAJOR_MAKES = new Set([
-  "ACURA", "ALFA ROMEO", "ASTON MARTIN", "AUDI", "BENTLEY", "BMW", "BUICK",
-  "CADILLAC", "CHEVROLET", "CHRYSLER", "DODGE", "FERRARI", "FIAT", "FORD",
-  "GENESIS", "GMC", "HONDA", "HYUNDAI", "INFINITI", "JAGUAR", "JEEP", "KIA",
-  "LAMBORGHINI", "LAND ROVER", "LEXUS", "LINCOLN", "LUCID", "MASERATI",
-  "MAZDA", "MCLAREN", "MERCEDES-BENZ", "MINI", "MITSUBISHI", "NISSAN",
-  "POLESTAR", "PORSCHE", "RAM", "RIVIAN", "ROLLS-ROYCE", "SUBARU", "TESLA",
-  "TOYOTA", "VOLKSWAGEN", "VOLVO",
-]);
+const FUEL_ECONOMY_BASE = "https://www.fueleconomy.gov/ws/rest/vehicle/menu";
+
+// Helper to parse fueleconomy.gov menu response
+function parseMenuItems(data: { menuItem?: { text: string; value: string } | { text: string; value: string }[] }): string[] {
+  if (!data?.menuItem) return [];
+  const items = Array.isArray(data.menuItem) ? data.menuItem : [data.menuItem];
+  return items.map((item) => item.text).sort((a, b) => a.localeCompare(b));
+}
 
 export default function VehicleSearch({ onChange, className }: VehicleSearchProps) {
   const [year, setYear] = useState<number | null>(null);
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
+  const [trim, setTrim] = useState("");
 
   const [makes, setMakes] = useState<string[]>([]);
   const [models, setModels] = useState<string[]>([]);
+  const [trims, setTrims] = useState<string[]>([]);
 
   const [loadingMakes, setLoadingMakes] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
+  const [loadingTrims, setLoadingTrims] = useState(false);
 
-  // Fetch makes when year is selected
+  // Fetch makes when year is selected (fueleconomy.gov — only real consumer brands)
   useEffect(() => {
     if (!year) {
       setMakes([]);
       setMake("");
       setModels([]);
       setModel("");
+      setTrims([]);
+      setTrim("");
       return;
     }
 
@@ -63,18 +67,16 @@ export default function VehicleSearch({ onChange, className }: VehicleSearchProp
     setLoadingMakes(true);
     setMake("");
     setModel("");
+    setTrim("");
     setModels([]);
+    setTrims([]);
 
-    fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/GetMakesForVehicleType/car?format=json`)
+    fetch(`${FUEL_ECONOMY_BASE}/make?year=${year}`, {
+      headers: { Accept: "application/json" },
+    })
       .then((res) => res.json())
       .then((data) => {
-        if (!cancelled) {
-          const sorted = (data.Results || [])
-            .map((r: { MakeName: string }) => r.MakeName)
-            .filter((name: string) => MAJOR_MAKES.has(name.toUpperCase()))
-            .sort((a: string, b: string) => a.localeCompare(b));
-          setMakes(sorted);
-        }
+        if (!cancelled) setMakes(parseMenuItems(data));
       })
       .catch(() => {
         if (!cancelled) setMakes([]);
@@ -83,9 +85,7 @@ export default function VehicleSearch({ onChange, className }: VehicleSearchProp
         if (!cancelled) setLoadingMakes(false);
       });
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [year]);
 
   // Fetch models when make is selected
@@ -93,22 +93,23 @@ export default function VehicleSearch({ onChange, className }: VehicleSearchProp
     if (!year || !make) {
       setModels([]);
       setModel("");
+      setTrims([]);
+      setTrim("");
       return;
     }
 
     let cancelled = false;
     setLoadingModels(true);
     setModel("");
+    setTrim("");
+    setTrims([]);
 
-    fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${year}?format=json`)
+    fetch(`${FUEL_ECONOMY_BASE}/model?year=${year}&make=${encodeURIComponent(make)}`, {
+      headers: { Accept: "application/json" },
+    })
       .then((res) => res.json())
       .then((data) => {
-        if (!cancelled) {
-          const sorted = (data.Results || [])
-            .map((r: { Model_Name: string }) => r.Model_Name)
-            .sort((a: string, b: string) => a.localeCompare(b));
-          setModels(sorted);
-        }
+        if (!cancelled) setModels(parseMenuItems(data));
       })
       .catch(() => {
         if (!cancelled) setModels([]);
@@ -117,72 +118,90 @@ export default function VehicleSearch({ onChange, className }: VehicleSearchProp
         if (!cancelled) setLoadingModels(false);
       });
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [year, make]);
 
-  // Notify parent when all three are selected
+  // Fetch trims (options) when model is selected
+  useEffect(() => {
+    if (!year || !make || !model) {
+      setTrims([]);
+      setTrim("");
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingTrims(true);
+    setTrim("");
+
+    fetch(
+      `${FUEL_ECONOMY_BASE}/options?year=${year}&make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}`,
+      { headers: { Accept: "application/json" } }
+    )
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) {
+          const items = parseMenuItems(data);
+          setTrims(items);
+          // If only one trim, auto-select it
+          if (items.length === 1) {
+            setTrim(items[0]);
+          }
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setTrims([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingTrims(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [year, make, model]);
+
+  // Notify parent when vehicle is fully selected
   const handleChange = useCallback(
-    (newYear: number | null, newMake: string, newModel: string) => {
-      if (newYear && newMake && newModel) {
-        onChange({ year: newYear, make: newMake, model: newModel });
+    (y: number | null, mk: string, md: string, tr: string) => {
+      if (y && mk && md) {
+        onChange({ year: y, make: mk, model: md, trim: tr });
       }
     },
     [onChange]
   );
 
   return (
-    <div className={cn("grid grid-cols-1 sm:grid-cols-3 gap-4", className)}>
+    <div className={cn("grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4", className)}>
       {/* Year */}
-      <div className="relative">
-        <label className="block text-sm font-medium text-rpm-silver mb-1.5">
-          Year
-        </label>
+      <div>
+        <label className="block text-sm font-medium text-rpm-silver mb-1.5">Year</label>
         <select
           value={year ?? ""}
-          onChange={(e) => {
-            const v = e.target.value ? Number(e.target.value) : null;
-            setYear(v);
-          }}
+          onChange={(e) => setYear(e.target.value ? Number(e.target.value) : null)}
           className={selectClasses}
         >
           <option value="">Select Year</option>
           {years.map((y) => (
-            <option key={y} value={y}>
-              {y}
-            </option>
+            <option key={y} value={y}>{y}</option>
           ))}
         </select>
       </div>
 
       {/* Make */}
-      <div className="relative">
-        <label className="block text-sm font-medium text-rpm-silver mb-1.5">
-          Make
-        </label>
+      <div>
+        <label className="block text-sm font-medium text-rpm-silver mb-1.5">Make</label>
         <div className="relative">
           <select
             value={make}
             onChange={(e) => {
-              const v = e.target.value;
-              setMake(v);
+              setMake(e.target.value);
               setModel("");
-              handleChange(year, v, "");
+              setTrim("");
             }}
             disabled={!year || loadingMakes}
-            className={cn(
-              selectClasses,
-              (!year || loadingMakes) && "opacity-50 cursor-not-allowed"
-            )}
+            className={cn(selectClasses, (!year || loadingMakes) && "opacity-50 cursor-not-allowed")}
           >
-            <option value="">
-              {loadingMakes ? "Loading..." : "Select Make"}
-            </option>
+            <option value="">{loadingMakes ? "Loading..." : "Select Make"}</option>
             {makes.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
+              <option key={m} value={m}>{m}</option>
             ))}
           </select>
           {loadingMakes && <div className={spinnerClasses} />}
@@ -190,34 +209,49 @@ export default function VehicleSearch({ onChange, className }: VehicleSearchProp
       </div>
 
       {/* Model */}
-      <div className="relative">
-        <label className="block text-sm font-medium text-rpm-silver mb-1.5">
-          Model
-        </label>
+      <div>
+        <label className="block text-sm font-medium text-rpm-silver mb-1.5">Model</label>
         <div className="relative">
           <select
             value={model}
             onChange={(e) => {
-              const v = e.target.value;
-              setModel(v);
-              handleChange(year, make, v);
+              setModel(e.target.value);
+              setTrim("");
             }}
             disabled={!make || loadingModels}
-            className={cn(
-              selectClasses,
-              (!make || loadingModels) && "opacity-50 cursor-not-allowed"
-            )}
+            className={cn(selectClasses, (!make || loadingModels) && "opacity-50 cursor-not-allowed")}
           >
-            <option value="">
-              {loadingModels ? "Loading..." : "Select Model"}
-            </option>
+            <option value="">{loadingModels ? "Loading..." : "Select Model"}</option>
             {models.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
+              <option key={m} value={m}>{m}</option>
             ))}
           </select>
           {loadingModels && <div className={spinnerClasses} />}
+        </div>
+      </div>
+
+      {/* Trim */}
+      <div>
+        <label className="block text-sm font-medium text-rpm-silver mb-1.5">Trim</label>
+        <div className="relative">
+          <select
+            value={trim}
+            onChange={(e) => {
+              const v = e.target.value;
+              setTrim(v);
+              handleChange(year, make, model, v);
+            }}
+            disabled={!model || loadingTrims}
+            className={cn(selectClasses, (!model || loadingTrims) && "opacity-50 cursor-not-allowed")}
+          >
+            <option value="">
+              {loadingTrims ? "Loading..." : trims.length === 0 && model ? "No trims found" : "Select Trim"}
+            </option>
+            {trims.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+          {loadingTrims && <div className={spinnerClasses} />}
         </div>
       </div>
     </div>

@@ -71,8 +71,8 @@ export default function QuoteForm() {
   }, 0);
 
   const handleVehicleChange = useCallback(
-    (v: { year: number; make: string; model: string }) => {
-      setVehicle((prev) => ({ ...prev, ...v }));
+    (v: { year: number; make: string; model: string; trim?: string }) => {
+      setVehicle((prev) => ({ ...prev, ...v, trim: v.trim || prev.trim }));
     },
     []
   );
@@ -356,35 +356,19 @@ function StepVehicle({
         <p className="text-sm text-rpm-red mt-1">{errors.vehicle}</p>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-rpm-silver mb-1.5">
-            Trim <span className="text-rpm-silver/50">(optional)</span>
-          </label>
-          <input
-            type="text"
-            value={vehicle.trim}
-            onChange={(e) =>
-              setVehicle((v) => ({ ...v, trim: e.target.value }))
-            }
-            placeholder="e.g. Sport, Limited"
-            className={inputClasses}
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-rpm-silver mb-1.5">
-            Color <span className="text-rpm-silver/50">(optional)</span>
-          </label>
-          <input
-            type="text"
-            value={vehicle.color}
-            onChange={(e) =>
-              setVehicle((v) => ({ ...v, color: e.target.value }))
-            }
-            placeholder="e.g. Black, Pearl White"
-            className={inputClasses}
-          />
-        </div>
+      <div>
+        <label className="block text-sm font-medium text-rpm-silver mb-1.5">
+          Vehicle Color <span className="text-rpm-silver/50">(optional)</span>
+        </label>
+        <input
+          type="text"
+          value={vehicle.color}
+          onChange={(e) =>
+            setVehicle((v) => ({ ...v, color: e.target.value }))
+          }
+          placeholder="e.g. Black, Pearl White, Midnight Blue"
+          className={inputClasses}
+        />
       </div>
     </div>
   );
