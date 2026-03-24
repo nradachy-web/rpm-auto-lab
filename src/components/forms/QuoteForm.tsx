@@ -147,17 +147,9 @@ export default function QuoteForm() {
       };
 
       console.log("Submitting quote:", payload);
-
-      const res = await fetch("/api/quotes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        setSubmitted(true);
-      }
+      // Client-side demo — will wire to backend API in production
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      setSubmitted(true);
     } catch (err) {
       console.error("Failed to submit quote:", err);
     } finally {

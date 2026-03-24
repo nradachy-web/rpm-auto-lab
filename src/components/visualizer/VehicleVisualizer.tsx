@@ -156,7 +156,16 @@ const defaultServices: VisualizerService[] = [
   { id: 'detailing', name: 'Detailing', icon: icons.droplets, price: 149, enabled: false },
 ];
 
-// ─── Car SVG Silhouette ─────────────────────────────────────────────────
+// ─── Helper: lighten/darken hex color ─────────────────────────────────
+function adjustColor(hex: string, amount: number): string {
+  const num = parseInt(hex.replace('#', ''), 16);
+  const r = Math.min(255, Math.max(0, ((num >> 16) & 0xff) + amount));
+  const g = Math.min(255, Math.max(0, ((num >> 8) & 0xff) + amount));
+  const b = Math.min(255, Math.max(0, (num & 0xff) + amount));
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+}
+
+// ─── Premium Car SVG ─────────────────────────────────────────────────
 function CarSilhouette({
   bodyColor,
   windowOpacity,
@@ -172,8 +181,119 @@ function CarSilhouette({
   paintCorrectionEnabled: boolean;
   detailingEnabled: boolean;
 }) {
+  const colorLight = adjustColor(bodyColor, 50);
+  const colorDark = adjustColor(bodyColor, -40);
+  const colorDarker = adjustColor(bodyColor, -70);
+  const colorHighlight = adjustColor(bodyColor, 90);
+
+  // Wheel spoke generation
+  const renderSpokes = (cx: number, cy: number, prefix: string) => {
+    const spokes = [];
+    for (let i = 0; i < 5; i++) {
+      const angle = (i * 72 - 90) * (Math.PI / 180);
+      const angle2 = ((i * 72 + 36) - 90) * (Math.PI / 180);
+      const outerR = 30;
+      const innerR = 11;
+      const midR = 22;
+      // Main spoke
+      const ox = cx + Math.cos(angle) * outerR;
+      const oy = cy + Math.sin(angle) * outerR;
+      const ix = cx + Math.cos(angle) * innerR;
+      const iy = cy + Math.sin(angle) * innerR;
+      // Spoke sides
+      const sideAngle1 = angle - 0.15;
+      const sideAngle2 = angle + 0.15;
+      const so1x = cx + Math.cos(sideAngle1) * outerR;
+      const so1y = cy + Math.sin(sideAngle1) * outerR;
+      const so2x = cx + Math.cos(sideAngle2) * outerR;
+      const so2y = cy + Math.sin(sideAngle2) * outerR;
+      const si1x = cx + Math.cos(sideAngle1) * innerR;
+      const si1y = cy + Math.sin(sideAngle1) * innerR;
+      const si2x = cx + Math.cos(sideAngle2) * innerR;
+      const si2y = cy + Math.sin(sideAngle2) * innerR;
+      spokes.push(
+        <path
+          key={`${prefix}-spoke-${i}`}
+          d={`M ${si1x},${si1y} L ${so1x},${so1y} L ${so2x},${so2y} L ${si2x},${si2y} Z`}
+          fill="#555"
+          stroke="#666"
+          strokeWidth="0.5"
+        />
+      );
+      // Secondary thin spoke
+      const mx = cx + Math.cos(angle2) * midR;
+      const my = cy + Math.sin(angle2) * midR;
+      const mix = cx + Math.cos(angle2) * innerR;
+      const miy = cy + Math.sin(angle2) * innerR;
+      spokes.push(
+        <line
+          key={`${prefix}-thin-${i}`}
+          x1={mix} y1={miy} x2={mx} y2={my}
+          stroke="#444"
+          strokeWidth="1.5"
+        />
+      );
+    }
+    return spokes;
+  };
+
+  // Render a full wheel
+  const renderWheel = (cx: number, cy: number, prefix: string) => (
+    <g id={`${prefix}-wheel`}>
+      {/* Wheel shadow */}
+      <ellipse cx={cx} cy={cy + 38} rx={38} ry={6} fill="rgba(0,0,0,0.5)" />
+      {/* Tire outer */}
+      <circle cx={cx} cy={cy} r={42} fill="#111" />
+      {/* Tire tread */}
+      <circle cx={cx} cy={cy} r={42} fill="none" stroke="#1a1a1a" strokeWidth="2" />
+      {/* Tire sidewall highlight */}
+      <path
+        d={`M ${cx - 40},${cy - 12} A 42,42 0 0,1 ${cx - 12},${cy - 40}`}
+        fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="3"
+      />
+      {/* Tire inner edge */}
+      <circle cx={cx} cy={cy} r={35} fill="#0d0d0d" />
+      {/* Rim outer ring */}
+      <circle cx={cx} cy={cy} r={33} fill="url(#rimOuter)" stroke="#555" strokeWidth="0.5" />
+      {/* Brake disc */}
+      <circle cx={cx} cy={cy} r={22} fill="url(#brakeDisc)" />
+      {/* Brake disc slots */}
+      {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map((a) => {
+        const rad = (a * Math.PI) / 180;
+        return (
+          <line
+            key={`${prefix}-slot-${a}`}
+            x1={cx + Math.cos(rad) * 12}
+            y1={cy + Math.sin(rad) * 12}
+            x2={cx + Math.cos(rad) * 20}
+            y2={cy + Math.sin(rad) * 20}
+            stroke="rgba(80,80,80,0.4)"
+            strokeWidth="0.8"
+          />
+        );
+      })}
+      {/* Brake caliper */}
+      <rect
+        x={cx - 14} y={cy + 6} width={16} height={10} rx={2}
+        fill="#cc0000" stroke="#990000" strokeWidth="0.5"
+      />
+      <text x={cx - 6} y={cy + 14} fontSize="5" fill="#ffcccc" fontWeight="bold" fontFamily="Arial">RPM</text>
+      {/* Spokes */}
+      {renderSpokes(cx, cy, prefix)}
+      {/* Center hub */}
+      <circle cx={cx} cy={cy} r={8} fill="#333" stroke="#555" strokeWidth="1" />
+      <circle cx={cx} cy={cy} r={4} fill="#444" />
+      <circle cx={cx} cy={cy} r={2} fill="#555" />
+      {/* Rim lip shine */}
+      <path
+        d={`M ${cx - 32},${cy - 8} A 33,33 0 0,1 ${cx + 10},${cy - 32}`}
+        fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="1.5"
+      />
+    </g>
+  );
+
   return (
-    <div className="relative w-full max-w-[700px] mx-auto">
+    <div className="relative w-full max-w-[900px] mx-auto">
       {/* Detailing glow aura */}
       <AnimatePresence>
         {detailingEnabled && (
@@ -181,20 +301,20 @@ function CarSilhouette({
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="absolute inset-0 -inset-x-8 -inset-y-8 pointer-events-none"
+            className="absolute -inset-12 pointer-events-none"
           >
             <div
-              className="w-full h-full rounded-[50%] blur-2xl"
+              className="w-full h-full rounded-[50%] blur-3xl"
               style={{
-                background: `radial-gradient(ellipse at center, ${bodyColor}22 0%, transparent 70%)`,
+                background: `radial-gradient(ellipse at center, ${bodyColor}33 0%, transparent 70%)`,
               }}
             />
             <motion.div
-              className="absolute inset-0 rounded-[50%] blur-3xl"
-              animate={{ opacity: [0.3, 0.6, 0.3] }}
+              className="absolute inset-0 rounded-[50%] blur-[60px]"
+              animate={{ opacity: [0.2, 0.5, 0.2] }}
               transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
               style={{
-                background: `radial-gradient(ellipse at center, rgba(255,255,255,0.06) 0%, transparent 60%)`,
+                background: `radial-gradient(ellipse at center, rgba(255,255,255,0.08) 0%, transparent 60%)`,
               }}
             />
           </motion.div>
@@ -202,367 +322,827 @@ function CarSilhouette({
       </AnimatePresence>
 
       <svg
-        viewBox="0 0 800 350"
+        viewBox="0 0 1200 500"
         className="w-full h-auto relative z-10"
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
-          {/* Ceramic coating animated shimmer gradient */}
-          <linearGradient id="ceramicShine" x1="0%" y1="0%" x2="100%" y2="0%">
+          {/* ── Body Paint Gradient ── */}
+          <linearGradient id="bodyPaint" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor={colorLight} />
+            <stop offset="35%" stopColor={bodyColor} />
+            <stop offset="65%" stopColor={bodyColor} />
+            <stop offset="100%" stopColor={colorDark} />
+          </linearGradient>
+
+          {/* ── Roof gradient (slightly lighter) ── */}
+          <linearGradient id="roofPaint" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor={colorHighlight} />
+            <stop offset="40%" stopColor={colorLight} />
+            <stop offset="100%" stopColor={bodyColor} />
+          </linearGradient>
+
+          {/* ── Specular highlight strip ── */}
+          <linearGradient id="specularStrip" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="rgba(255,255,255,0)" />
-            <stop offset="40%" stopColor="rgba(255,255,255,0)" />
-            <stop offset="50%" stopColor="rgba(255,255,255,0.35)" />
-            <stop offset="60%" stopColor="rgba(255,255,255,0)" />
+            <stop offset="20%" stopColor="rgba(255,255,255,0.08)" />
+            <stop offset="50%" stopColor="rgba(255,255,255,0.18)" />
+            <stop offset="80%" stopColor="rgba(255,255,255,0.06)" />
             <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-            {ceramicEnabled && (
-              <>
-                <animateTransform
-                  attributeName="gradientTransform"
-                  type="translate"
-                  values="-1 0;2 0"
-                  dur="3s"
-                  repeatCount="indefinite"
-                />
-              </>
-            )}
           </linearGradient>
 
-          {/* Window gradient */}
-          <linearGradient id="windowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#1a1a2e" />
-            <stop offset="100%" stopColor="#0f0f1a" />
-          </linearGradient>
-
-          {/* Body reflection */}
+          {/* ── Body reflection overlay ── */}
           <linearGradient id="bodyReflection" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="rgba(255,255,255,0.15)" />
-            <stop offset="50%" stopColor="rgba(255,255,255,0)" />
-            <stop offset="100%" stopColor="rgba(0,0,0,0.2)" />
+            <stop offset="0%" stopColor="rgba(255,255,255,0.12)" />
+            <stop offset="30%" stopColor="rgba(255,255,255,0.03)" />
+            <stop offset="60%" stopColor="rgba(0,0,0,0)" />
+            <stop offset="100%" stopColor="rgba(0,0,0,0.25)" />
           </linearGradient>
 
-          {/* Wheel gradient */}
-          <radialGradient id="wheelGrad" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#333" />
-            <stop offset="60%" stopColor="#1a1a1a" />
-            <stop offset="80%" stopColor="#111" />
-            <stop offset="100%" stopColor="#0a0a0a" />
-          </radialGradient>
+          {/* ── Lower body shadow gradient ── */}
+          <linearGradient id="lowerBodyShade" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor={bodyColor} />
+            <stop offset="100%" stopColor={colorDarker} />
+          </linearGradient>
 
-          {/* Rim detail */}
-          <radialGradient id="rimGrad" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#555" />
-            <stop offset="40%" stopColor="#333" />
+          {/* ── Window gradients ── */}
+          <linearGradient id="windowGrad" x1="0%" y1="0%" x2="0.3" y2="1">
+            <stop offset="0%" stopColor="#2a3040" />
+            <stop offset="50%" stopColor="#181c28" />
+            <stop offset="100%" stopColor="#0e1018" />
+          </linearGradient>
+
+          <linearGradient id="windshieldGrad" x1="0.3" y1="0" x2="0.7" y2="1">
+            <stop offset="0%" stopColor="#3a4050" />
+            <stop offset="40%" stopColor="#1e2230" />
+            <stop offset="100%" stopColor="#10121a" />
+          </linearGradient>
+
+          {/* ── Window tint overlay ── */}
+          <linearGradient id="windowTint" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#000" />
+            <stop offset="100%" stopColor="#000" />
+          </linearGradient>
+
+          {/* ── Rim gradients ── */}
+          <radialGradient id="rimOuter" cx="40%" cy="35%" r="60%">
+            <stop offset="0%" stopColor="#6a6a6a" />
+            <stop offset="40%" stopColor="#3a3a3a" />
             <stop offset="100%" stopColor="#222" />
           </radialGradient>
 
-          {/* PPF dash pattern */}
-          <pattern id="ppfPattern" patternUnits="userSpaceOnUse" width="8" height="8">
-            <rect width="8" height="8" fill="none" />
-            <circle cx="4" cy="4" r="0.8" fill="rgba(255,255,255,0.3)" />
+          <radialGradient id="brakeDisc" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#4a4a4a" />
+            <stop offset="60%" stopColor="#3a3a3a" />
+            <stop offset="100%" stopColor="#2a2a2a" />
+          </radialGradient>
+
+          {/* ── Headlight gradient ── */}
+          <linearGradient id="headlightGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#f0f4ff" />
+            <stop offset="50%" stopColor="#d8e0f0" />
+            <stop offset="100%" stopColor="#c0c8e0" />
+          </linearGradient>
+
+          {/* ── Taillight gradient ── */}
+          <linearGradient id="taillightGrad" x1="100%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#ff2020" />
+            <stop offset="50%" stopColor="#cc0000" />
+            <stop offset="100%" stopColor="#880000" />
+          </linearGradient>
+
+          {/* ── Headlight glow filter ── */}
+          <filter id="headlightGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+
+          {/* ── Taillight glow filter ── */}
+          <filter id="taillightGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+
+          {/* ── DRL glow ── */}
+          <filter id="drlGlow" x="-100%" y="-100%" width="300%" height="300%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+
+          {/* ── Ground shadow ── */}
+          <radialGradient id="groundShadow" cx="50%" cy="50%" rx="50%" ry="50%">
+            <stop offset="0%" stopColor="rgba(0,0,0,0.5)" />
+            <stop offset="70%" stopColor="rgba(0,0,0,0.2)" />
+            <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+          </radialGradient>
+
+          {/* ── Reflective floor gradient ── */}
+          <linearGradient id="floorGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="rgba(255,255,255,0.04)" />
+            <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+          </linearGradient>
+
+          {/* ── Ceramic coating shimmer ── */}
+          <linearGradient id="ceramicShine" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="rgba(255,255,255,0)" />
+            <stop offset="35%" stopColor="rgba(255,255,255,0)" />
+            <stop offset="48%" stopColor="rgba(255,255,255,0.05)" />
+            <stop offset="50%" stopColor="rgba(255,255,255,0.35)" />
+            <stop offset="52%" stopColor="rgba(255,255,255,0.05)" />
+            <stop offset="65%" stopColor="rgba(255,255,255,0)" />
+            <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+            {ceramicEnabled && (
+              <animateTransform
+                attributeName="gradientTransform"
+                type="translate"
+                values="-1.5 0;2.5 0"
+                dur="2.8s"
+                repeatCount="indefinite"
+              />
+            )}
+          </linearGradient>
+
+          {/* ── PPF protection pattern ── */}
+          <pattern id="ppfDots" patternUnits="userSpaceOnUse" width="10" height="10">
+            <circle cx="5" cy="5" r="0.6" fill="rgba(100,200,255,0.25)" />
           </pattern>
 
-          {/* Shadow filter */}
-          <filter id="carShadow" x="-10%" y="-10%" width="120%" height="140%">
-            <feGaussianBlur in="SourceAlpha" stdDeviation="8" />
-            <feOffset dy="12" />
+          {/* ── Car shadow filter ── */}
+          <filter id="carShadow" x="-5%" y="-5%" width="110%" height="130%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="6" />
+            <feOffset dy="8" />
             <feComponentTransfer>
-              <feFuncA type="linear" slope="0.4" />
+              <feFuncA type="linear" slope="0.35" />
             </feComponentTransfer>
             <feMerge>
               <feMergeNode />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
+
+          {/* ── Clip path for car reflection ── */}
+          <clipPath id="reflectionClip">
+            <rect x="100" y="395" width="1000" height="100" />
+          </clipPath>
         </defs>
 
+        {/* ═══════════════════════════════════════════════════════════════
+            GROUND / ENVIRONMENT
+        ═══════════════════════════════════════════════════════════════ */}
+
+        {/* Reflective floor surface */}
+        <rect x="50" y="388" width="1100" height="110" fill="url(#floorGrad)" />
+        <line x1="100" y1="390" x2="1100" y2="390" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" />
+
         {/* Ground shadow */}
-        <ellipse cx="400" cy="310" rx="320" ry="18" fill="rgba(0,0,0,0.3)" />
+        <ellipse cx="600" cy="392" rx="420" ry="22" fill="url(#groundShadow)" />
 
-        {/* ── Main Car Body ── */}
-        <g filter="url(#carShadow)">
-          {/* Lower body */}
+        {/* ═══════════════════════════════════════════════════════════════
+            MAIN CAR BODY
+        ═══════════════════════════════════════════════════════════════ */}
+        <g id="car-body" filter="url(#carShadow)">
+
+          {/* ── Lower Body / Rocker Panel / Sills ── */}
           <motion.path
-            d="M 120,240
-               L 120,210
-               Q 120,190 140,188
-               L 280,180
-               L 300,178
-               L 500,178
-               L 520,180
-               L 660,188
-               Q 680,190 680,210
-               L 680,240
-               Q 680,258 665,260
-               L 590,264
-               L 540,266
-               Q 520,266 520,260
-               L 520,256
-               Q 520,250 510,250
-               L 290,250
-               Q 280,250 280,256
-               L 280,260
-               Q 280,266 260,266
-               L 210,264
-               L 135,260
-               Q 120,258 120,240 Z"
+            id="lower-body"
+            d={`
+              M 180,350
+              C 180,350 170,348 165,340
+              L 150,320
+              C 145,310 148,298 155,292
+              L 200,280
+              L 310,272
+              C 320,271 325,275 325,275
+              L 325,290
+              C 325,296 330,300 336,300
+              L 420,300
+              C 426,300 430,296 430,290
+              L 430,272
+              L 510,268
+              L 700,268
+              L 770,272
+              L 770,290
+              C 770,296 774,300 780,300
+              L 864,300
+              C 870,300 875,296 875,290
+              L 875,275
+              C 875,275 880,271 890,272
+              L 1000,280
+              L 1045,292
+              C 1052,298 1055,310 1050,320
+              L 1035,340
+              C 1030,348 1020,350 1020,350
+              Z
+            `}
             animate={{ fill: bodyColor }}
-            transition={{ duration: 0.5, ease: 'easeInOut' }}
+            transition={{ duration: 0.5 }}
           />
 
-          {/* Upper body / roof */}
+          {/* ── Main Body Side Panel ── */}
           <motion.path
-            d="M 240,180
-               L 270,120
-               Q 278,105 295,102
-               L 380,96
-               L 430,95
-               L 490,98
-               Q 510,100 518,108
-               L 560,160
-               L 565,168
-               Q 568,174 560,178
-               L 500,178
-               L 300,178
-               L 240,180 Z"
+            id="body-side"
+            d={`
+              M 155,292
+              L 130,270
+              C 122,260 120,250 122,240
+              L 130,220
+              C 135,208 145,200 160,196
+              L 260,178
+              L 360,170
+              L 440,168
+              L 560,166
+              L 720,168
+              L 840,172
+              L 940,180
+              L 1020,192
+              C 1040,196 1055,208 1060,220
+              L 1078,250
+              C 1082,260 1080,270 1072,280
+              L 1045,292
+              L 1000,280
+              L 890,272
+              L 770,272
+              L 510,268
+              L 430,272
+              L 310,272
+              L 200,280
+              Z
+            `}
             animate={{ fill: bodyColor }}
-            transition={{ duration: 0.5, ease: 'easeInOut' }}
+            transition={{ duration: 0.5 }}
           />
 
-          {/* Body reflection overlay */}
+          {/* Body paint gradient overlay */}
           <path
-            d="M 120,240
-               L 120,210
-               Q 120,190 140,188
-               L 280,180
-               L 300,178
-               L 500,178
-               L 520,180
-               L 660,188
-               Q 680,190 680,210
-               L 680,240
-               Q 680,258 665,260
-               L 590,264
-               L 540,266
-               Q 520,266 520,260
-               L 520,256
-               Q 520,250 510,250
-               L 290,250
-               Q 280,250 280,256
-               L 280,260
-               Q 280,266 260,266
-               L 210,264
-               L 135,260
-               Q 120,258 120,240 Z"
+            id="body-gradient"
+            d={`
+              M 155,292
+              L 130,270
+              C 122,260 120,250 122,240
+              L 130,220
+              C 135,208 145,200 160,196
+              L 260,178
+              L 360,170
+              L 440,168
+              L 560,166
+              L 720,168
+              L 840,172
+              L 940,180
+              L 1020,192
+              C 1040,196 1055,208 1060,220
+              L 1078,250
+              C 1082,260 1080,270 1072,280
+              L 1045,292
+              L 1000,280
+              L 890,272
+              L 770,272
+              L 510,268
+              L 430,272
+              L 310,272
+              L 200,280
+              Z
+            `}
             fill="url(#bodyReflection)"
           />
 
-          {/* Roof reflection */}
+          {/* ── Character Line / Shoulder Line ── */}
           <path
-            d="M 240,180
-               L 270,120
-               Q 278,105 295,102
-               L 380,96
-               L 430,95
-               L 490,98
-               Q 510,100 518,108
-               L 560,160
-               L 565,168
-               Q 568,174 560,178
-               L 500,178
-               L 300,178
-               L 240,180 Z"
-            fill="url(#bodyReflection)"
+            id="shoulder-line"
+            d={`
+              M 175,218
+              C 200,212 350,198 500,194
+              C 650,190 850,194 950,200
+              C 1000,204 1040,210 1058,218
+            `}
+            fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1.5"
           />
 
-          {/* ── Windows ── */}
-          {/* Front windshield */}
-          <motion.path
-            d="M 518,112
-               L 555,165
-               Q 558,170 552,174
-               L 508,176
-               L 508,176
-               Q 502,176 502,170
-               L 502,115
-               Q 502,108 510,108 Z"
-            fill="url(#windowGrad)"
-            animate={{ opacity: 1 - (70 - Math.min(70, Math.max(5, 50))) / 100 * 0.6 }}
-            transition={{ duration: 0.4 }}
+          {/* Specular highlight strip along shoulder */}
+          <path
+            id="specular"
+            d={`
+              M 175,204
+              C 200,198 350,186 500,182
+              C 650,178 850,182 950,188
+              L 1050,196
+              L 1058,218
+              C 1000,210 850,198 700,196
+              C 550,194 300,200 175,214
+              Z
+            `}
+            fill="url(#specularStrip)"
           />
-          {/* Window tint overlay on windshield */}
+
+          {/* ── Hood Panel ── */}
           <motion.path
-            d="M 518,112
-               L 555,165
-               Q 558,170 552,174
-               L 508,176
-               L 508,176
-               Q 502,176 502,170
-               L 502,115
-               Q 502,108 510,108 Z"
-            fill="black"
-            animate={{ opacity: 0.15 }}
-            transition={{ duration: 0.4 }}
+            id="hood"
+            d={`
+              M 780,172
+              L 840,172
+              L 940,180
+              L 1020,192
+              C 1040,196 1055,208 1060,220
+              L 1065,232
+              L 780,204
+              Z
+            `}
+            animate={{ fill: bodyColor }}
+            transition={{ duration: 0.5 }}
+            opacity={0.97}
           />
+
+          {/* Hood highlight */}
+          <path
+            d={`
+              M 800,174
+              L 900,180
+              L 1000,190
+              L 1040,202
+              L 1050,216
+              L 820,196
+              Z
+            `}
+            fill="rgba(255,255,255,0.04)"
+          />
+
+          {/* ── Roof / Greenhouse ── */}
+          <motion.path
+            id="roof"
+            d={`
+              M 410,168
+              L 440,108
+              C 448,90 460,80 480,76
+              L 560,68
+              L 640,66
+              L 720,68
+              L 780,74
+              C 800,78 810,88 816,100
+              L 850,160
+              C 854,168 850,172 842,172
+              L 720,168
+              L 560,166
+              L 440,168
+              L 414,170
+              C 408,170 406,172 410,168
+              Z
+            `}
+            animate={{ fill: bodyColor }}
+            transition={{ duration: 0.5 }}
+          />
+
+          {/* Roof gradient overlay */}
+          <path
+            d={`
+              M 410,168
+              L 440,108
+              C 448,90 460,80 480,76
+              L 560,68
+              L 640,66
+              L 720,68
+              L 780,74
+              C 800,78 810,88 816,100
+              L 850,160
+              C 854,168 850,172 842,172
+              L 720,168
+              L 560,166
+              L 440,168
+              L 414,170
+              C 408,170 406,172 410,168
+              Z
+            `}
+            fill="url(#bodyReflection)"
+            opacity="0.6"
+          />
+
+          {/* ── Trunk Panel ── */}
+          <motion.path
+            id="trunk"
+            d={`
+              M 260,178
+              L 360,170
+              L 410,168
+              L 420,192
+              L 260,200
+              L 200,208
+              L 160,196
+              Z
+            `}
+            animate={{ fill: bodyColor }}
+            transition={{ duration: 0.5 }}
+            opacity={0.95}
+          />
+
+          {/* ── Rear lip spoiler ── */}
+          <motion.path
+            id="rear-spoiler"
+            d={`
+              M 240,174
+              L 260,178
+              L 410,168
+              L 414,166
+              L 258,176
+              L 236,172
+              Z
+            `}
+            animate={{ fill: colorDark }}
+            transition={{ duration: 0.5 }}
+          />
+
+          {/* ── Front lip spoiler ── */}
+          <motion.path
+            id="front-lip"
+            d={`
+              M 1040,288
+              L 1078,262
+              C 1085,256 1092,258 1088,266
+              L 1060,292
+              L 1045,296
+              Z
+            `}
+            animate={{ fill: colorDarker }}
+            transition={{ duration: 0.5 }}
+          />
+
+          {/* ── Side Skirt ── */}
+          <motion.path
+            id="side-skirt"
+            d={`
+              M 200,280
+              L 310,272
+              L 430,272
+              L 510,268
+              L 700,268
+              L 770,272
+              L 890,272
+              L 1000,280
+              L 1000,286
+              L 890,278
+              L 770,278
+              L 700,274
+              L 510,274
+              L 430,278
+              L 310,278
+              L 200,286
+              Z
+            `}
+            animate={{ fill: colorDarker }}
+            transition={{ duration: 0.5 }}
+          />
+
+          {/* ── WINDOWS ── */}
 
           {/* Rear windshield */}
           <motion.path
-            d="M 278,112
-               L 248,165
-               Q 245,170 250,174
-               L 295,176
-               Q 300,176 300,170
-               L 300,115
-               Q 300,108 292,108 Z"
+            id="rear-window"
+            d={`
+              M 440,110
+              L 416,164
+              C 414,168 418,170 422,168
+              L 490,166
+              L 490,112
+              C 490,102 478,98 470,100
+              Z
+            `}
             fill="url(#windowGrad)"
             animate={{ opacity: windowOpacity }}
             transition={{ duration: 0.4 }}
           />
 
-          {/* Side windows - passenger */}
+          {/* Rear side window */}
           <motion.path
-            d="M 305,108
-               L 370,100
-               L 370,172
-               L 305,174
-               Q 302,174 302,170
-               L 302,112
-               Q 302,108 305,108 Z"
+            id="rear-side-window"
+            d={`
+              M 496,100
+              L 570,72
+              L 570,162
+              L 496,164
+              Z
+            `}
             fill="url(#windowGrad)"
             animate={{ opacity: windowOpacity }}
             transition={{ duration: 0.4 }}
           />
 
+          {/* Front side window */}
           <motion.path
-            d="M 378,100
-               L 440,98
-               L 498,104
-               Q 500,105 500,108
-               L 500,170
-               Q 500,174 496,174
-               L 378,172 Z"
+            id="front-side-window"
+            d={`
+              M 580,70
+              L 700,68
+              L 760,76
+              C 774,80 780,86 784,94
+              L 800,140
+              L 800,162
+              L 580,162
+              Z
+            `}
             fill="url(#windowGrad)"
             animate={{ opacity: windowOpacity }}
             transition={{ duration: 0.4 }}
           />
 
-          {/* Window divider / B-pillar */}
-          <motion.line
-            x1="374" y1="100" x2="374" y2="174"
-            stroke={bodyColor}
-            strokeWidth="4"
-            animate={{ stroke: bodyColor }}
-            transition={{ duration: 0.5 }}
-          />
-
-          {/* ── Door line ── */}
-          <motion.line
-            x1="400" y1="178" x2="400" y2="252"
-            stroke="rgba(0,0,0,0.2)"
-            strokeWidth="1.5"
-          />
-
-          {/* ── Headlights ── */}
-          <path
-            d="M 660,198 Q 690,196 695,204 L 695,220 Q 690,228 660,226 Z"
-            fill="#fff"
-            opacity="0.85"
-          />
-          <path
-            d="M 662,201 Q 686,199 689,205 L 689,218 Q 686,224 662,222 Z"
-            fill="#e8e8ff"
-            opacity="0.95"
-          />
-          {/* Headlight DRL accent */}
-          <line x1="662" y1="204" x2="688" y2="203" stroke="rgba(200,220,255,0.8)" strokeWidth="1.5" />
-
-          {/* ── Taillights ── */}
-          <path
-            d="M 140,198 Q 118,196 114,204 L 114,224 Q 118,230 140,228 Z"
-            fill="#dc2626"
-            opacity="0.9"
-          />
-          <path
-            d="M 138,201 Q 122,199 119,205 L 119,222 Q 122,227 138,225 Z"
-            fill="#ef4444"
-            opacity="0.7"
-          />
-
-          {/* ── Side skirt line ── */}
-          <line x1="160" y1="252" x2="640" y2="252" stroke="rgba(0,0,0,0.15)" strokeWidth="1" />
-
-          {/* ── Door handle ── */}
-          <rect x="440" y="210" width="24" height="4" rx="2" fill="rgba(255,255,255,0.1)" />
-          <rect x="330" y="210" width="24" height="4" rx="2" fill="rgba(255,255,255,0.1)" />
-
-          {/* ── Side mirror ── */}
+          {/* Front windshield */}
           <motion.path
-            d="M 558,175 L 572,168 L 576,176 L 564,182 Z"
+            id="windshield"
+            d={`
+              M 808,90
+              C 812,84 818,82 826,82
+              L 840,130
+              L 848,158
+              C 850,164 846,168 840,168
+              L 808,166
+              L 808,96
+              Z
+            `}
+            fill="url(#windshieldGrad)"
+            animate={{ opacity: Math.min(windowOpacity + 0.1, 1) }}
+            transition={{ duration: 0.4 }}
+          />
+
+          {/* Windshield reflection streak */}
+          <path
+            d={`
+              M 822,88
+              L 836,136
+              L 840,154
+              L 834,152
+              L 820,104
+              Z
+            `}
+            fill="rgba(255,255,255,0.08)"
+          />
+
+          {/* ── Window tint overlays ── */}
+          <motion.path
+            d={`M 440,110 L 416,164 C 414,168 418,170 422,168 L 490,166 L 490,112 C 490,102 478,98 470,100 Z`}
+            fill="black"
+            animate={{ opacity: isFinite(windowOpacity) ? Math.max(0, 0.85 - windowOpacity) : 0 }}
+            transition={{ duration: 0.4 }}
+          />
+          <motion.path
+            d={`M 496,100 L 570,72 L 570,162 L 496,164 Z`}
+            fill="black"
+            animate={{ opacity: isFinite(windowOpacity) ? Math.max(0, 0.85 - windowOpacity) : 0 }}
+            transition={{ duration: 0.4 }}
+          />
+          <motion.path
+            d={`M 580,70 L 700,68 L 760,76 C 774,80 780,86 784,94 L 800,140 L 800,162 L 580,162 Z`}
+            fill="black"
+            animate={{ opacity: isFinite(windowOpacity) ? Math.max(0, 0.85 - windowOpacity) : 0 }}
+            transition={{ duration: 0.4 }}
+          />
+
+          {/* ── Pillars ── */}
+          {/* A-pillar */}
+          <motion.path
+            d={`
+              M 808,90 L 816,100 L 850,160 L 854,168
+              L 842,172 L 838,168 L 800,166 L 808,96 Z
+            `}
             animate={{ fill: bodyColor }}
             transition={{ duration: 0.5 }}
           />
-        </g>
 
-        {/* ── Wheels ── */}
-        {/* Front wheel */}
-        <g>
-          <circle cx="565" cy="270" r="42" fill="#111" />
-          <circle cx="565" cy="270" r="38" fill="url(#wheelGrad)" />
-          <circle cx="565" cy="270" r="28" fill="url(#rimGrad)" />
-          {/* Rim spokes */}
-          {[0, 36, 72, 108, 144, 180, 216, 252, 288, 324].map((angle) => (
+          {/* B-pillar */}
+          <motion.rect
+            x={572} y={70} width={8} height={96} rx={2}
+            animate={{ fill: bodyColor }}
+            transition={{ duration: 0.5 }}
+          />
+
+          {/* C-pillar */}
+          <motion.path
+            d={`
+              M 488,100 L 496,100 L 496,166 L 488,166
+              L 488,112 Z
+            `}
+            animate={{ fill: bodyColor }}
+            transition={{ duration: 0.5 }}
+          />
+
+          {/* Window chrome trim (top) */}
+          <path
+            d={`
+              M 420,168
+              L 440,108
+              C 448,90 460,80 480,76
+              L 560,68
+              L 640,66
+              L 720,68
+              L 780,74
+              C 800,78 810,88 816,100
+              L 850,160
+            `}
+            fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1.2"
+          />
+
+          {/* ── Door Lines ── */}
+          {/* Front door line */}
+          <line x1="700" y1="168" x2="700" y2="272" stroke="rgba(0,0,0,0.15)" strokeWidth="1.2" />
+          <line x1="701" y1="168" x2="701" y2="272" stroke="rgba(255,255,255,0.03)" strokeWidth="0.5" />
+
+          {/* Rear door line */}
+          <line x1="510" y1="166" x2="510" y2="268" stroke="rgba(0,0,0,0.15)" strokeWidth="1.2" />
+          <line x1="511" y1="166" x2="511" y2="268" stroke="rgba(255,255,255,0.03)" strokeWidth="0.5" />
+
+          {/* ── Door Handles ── */}
+          <rect x="620" y="220" width="30" height="5" rx="2.5" fill="rgba(255,255,255,0.1)" />
+          <rect x="620" y="221" width="20" height="2" rx="1" fill="rgba(255,255,255,0.06)" />
+
+          <rect x="455" y="222" width="30" height="5" rx="2.5" fill="rgba(255,255,255,0.1)" />
+          <rect x="455" y="223" width="20" height="2" rx="1" fill="rgba(255,255,255,0.06)" />
+
+          {/* ── Side Mirror ── */}
+          <motion.path
+            id="side-mirror"
+            d={`
+              M 848,170
+              L 870,160
+              L 878,164
+              L 880,176
+              L 870,180
+              L 854,178
+              Z
+            `}
+            animate={{ fill: bodyColor }}
+            transition={{ duration: 0.5 }}
+          />
+          <path
+            d="M 870,162 L 876,166 L 878,174 L 870,178 Z"
+            fill="rgba(40,50,60,0.8)"
+          />
+
+          {/* ── HEADLIGHTS ── */}
+          <g id="headlights" filter="url(#headlightGlow)">
+            {/* Headlight housing */}
+            <path
+              d={`
+                M 1040,200
+                L 1072,198
+                C 1082,198 1088,204 1088,210
+                L 1088,240
+                C 1088,248 1082,254 1072,254
+                L 1040,252
+                Z
+              `}
+              fill="#1a1a1a"
+              stroke="rgba(255,255,255,0.08)"
+              strokeWidth="0.5"
+            />
+            {/* Headlight lens */}
+            <path
+              d={`
+                M 1044,204
+                L 1068,202
+                C 1076,202 1082,207 1082,213
+                L 1082,238
+                C 1082,246 1076,250 1068,250
+                L 1044,248
+                Z
+              `}
+              fill="url(#headlightGrad)"
+              opacity="0.9"
+            />
+            {/* LED DRL strip */}
+            <path
+              d="M 1046,208 L 1078,206"
+              stroke="rgba(200,220,255,0.9)"
+              strokeWidth="2"
+              filter="url(#drlGlow)"
+            />
+            {/* Inner LED elements */}
+            <rect x="1050" y="218" width="24" height="3" rx="1.5" fill="rgba(220,230,255,0.6)" />
+            <rect x="1050" y="226" width="24" height="3" rx="1.5" fill="rgba(220,230,255,0.4)" />
+            <rect x="1050" y="234" width="24" height="3" rx="1.5" fill="rgba(220,230,255,0.25)" />
+          </g>
+
+          {/* ── TAILLIGHTS ── */}
+          <g id="taillights" filter="url(#taillightGlow)">
+            {/* Taillight housing */}
+            <path
+              d={`
+                M 160,200
+                L 128,202
+                C 118,204 114,210 114,218
+                L 114,240
+                C 114,250 120,256 130,256
+                L 160,254
+                Z
+              `}
+              fill="#1a0000"
+              stroke="rgba(255,0,0,0.15)"
+              strokeWidth="0.5"
+            />
+            {/* Taillight lens */}
+            <path
+              d={`
+                M 156,204
+                L 132,206
+                C 122,208 118,214 118,222
+                L 118,238
+                C 118,246 122,250 132,250
+                L 156,248
+                Z
+              `}
+              fill="url(#taillightGrad)"
+              opacity="0.85"
+            />
+            {/* LED strip effect */}
+            <path d="M 154,210 L 124,212" stroke="#ff3030" strokeWidth="2.5" opacity="0.9" />
+            <path d="M 154,222 L 122,224" stroke="#ff2020" strokeWidth="2" opacity="0.7" />
+            <path d="M 154,234 L 122,236" stroke="#ff1010" strokeWidth="2" opacity="0.5" />
+            {/* Connecting LED bar */}
+            <path
+              d="M 156,208 L 156,248"
+              stroke="#ff2020"
+              strokeWidth="3"
+              opacity="0.8"
+            />
+          </g>
+
+          {/* ── Front grille / intake ── */}
+          <path
+            d={`
+              M 1058,230
+              L 1080,226
+              C 1086,226 1090,230 1090,236
+              L 1090,260
+              C 1090,268 1084,274 1076,274
+              L 1050,276
+              L 1044,260
+              Z
+            `}
+            fill="#0a0a0a"
+            stroke="rgba(255,255,255,0.04)"
+            strokeWidth="0.5"
+          />
+          {/* Grille mesh lines */}
+          {[0, 1, 2, 3, 4, 5].map((i) => (
             <line
-              key={`f-${angle}`}
-              x1="565"
-              y1="270"
-              x2={565 + Math.cos((angle * Math.PI) / 180) * 26}
-              y2={270 + Math.sin((angle * Math.PI) / 180) * 26}
-              stroke="#444"
-              strokeWidth="2.5"
+              key={`grille-${i}`}
+              x1={1052 + i * 2} y1={236 + i * 4}
+              x2={1086 - i * 1} y2={234 + i * 4}
+              stroke="rgba(255,255,255,0.04)"
+              strokeWidth="0.5"
             />
           ))}
-          <circle cx="565" cy="270" r="8" fill="#222" />
-          <circle cx="565" cy="270" r="5" fill="#333" />
-          {/* Tire highlight */}
-          <path d="M 533,252 Q 527,270 533,288" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="3" />
+
+          {/* ── Rear bumper / exhaust area ── */}
+          <rect x="130" y="260" width="26" height="10" rx="3" fill="#111" stroke="rgba(255,255,255,0.04)" strokeWidth="0.5" />
+          {/* Exhaust tips */}
+          <ellipse cx="140" cy="278" rx="8" ry="5" fill="#222" stroke="#444" strokeWidth="1" />
+          <ellipse cx="140" cy="278" rx="5" ry="3" fill="#111" />
+          <ellipse cx="158" cy="278" rx="8" ry="5" fill="#222" stroke="#444" strokeWidth="1" />
+          <ellipse cx="158" cy="278" rx="5" ry="3" fill="#111" />
+
+          {/* ── Fuel door ── */}
+          <path
+            d="M 340,196 L 356,194 L 358,206 L 342,208 Z"
+            fill="none" stroke="rgba(0,0,0,0.12)" strokeWidth="0.8"
+          />
         </g>
 
-        {/* Rear wheel */}
-        <g>
-          <circle cx="235" cy="270" r="42" fill="#111" />
-          <circle cx="235" cy="270" r="38" fill="url(#wheelGrad)" />
-          <circle cx="235" cy="270" r="28" fill="url(#rimGrad)" />
-          {[0, 36, 72, 108, 144, 180, 216, 252, 288, 324].map((angle) => (
-            <line
-              key={`r-${angle}`}
-              x1="235"
-              y1="270"
-              x2={235 + Math.cos((angle * Math.PI) / 180) * 26}
-              y2={270 + Math.sin((angle * Math.PI) / 180) * 26}
-              stroke="#444"
-              strokeWidth="2.5"
-            />
-          ))}
-          <circle cx="235" cy="270" r="8" fill="#222" />
-          <circle cx="235" cy="270" r="5" fill="#333" />
-          <path d="M 203,252 Q 197,270 203,288" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="3" />
-        </g>
+        {/* ═══════════════════════════════════════════════════════════════
+            WHEELS
+        ═══════════════════════════════════════════════════════════════ */}
+        {renderWheel(380, 308, 'rear')}
+        {renderWheel(870, 308, 'front')}
 
-        {/* ── Ceramic Coating Shimmer Overlay ── */}
+        {/* ═══════════════════════════════════════════════════════════════
+            SERVICE EFFECT OVERLAYS
+        ═══════════════════════════════════════════════════════════════ */}
+
+        {/* ── Ceramic Coating Shimmer ── */}
         <AnimatePresence>
           {ceramicEnabled && (
             <motion.g
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={{ duration: 0.6 }}
             >
               {/* Body shimmer */}
               <path
-                d="M 120,240 L 120,210 Q 120,190 140,188 L 280,180 L 300,178 L 500,178 L 520,180 L 660,188 Q 680,190 680,210 L 680,240 Q 680,258 665,260 L 590,264 L 540,266 Q 520,266 520,260 L 520,256 Q 520,250 510,250 L 290,250 Q 280,250 280,256 L 280,260 Q 280,266 260,266 L 210,264 L 135,260 Q 120,258 120,240 Z"
+                d={`
+                  M 155,292 L 130,270 C 122,260 120,250 122,240 L 130,220
+                  C 135,208 145,200 160,196 L 260,178 L 360,170 L 440,168
+                  L 560,166 L 720,168 L 840,172 L 940,180 L 1020,192
+                  C 1040,196 1055,208 1060,220 L 1078,250
+                  C 1082,260 1080,270 1072,280 L 1045,292
+                  L 1000,280 L 890,272 L 770,272 L 510,268 L 430,272
+                  L 310,272 L 200,280 Z
+                `}
                 fill="url(#ceramicShine)"
               />
               {/* Roof shimmer */}
               <path
-                d="M 240,180 L 270,120 Q 278,105 295,102 L 380,96 L 430,95 L 490,98 Q 510,100 518,108 L 560,160 L 565,168 Q 568,174 560,178 L 500,178 L 300,178 L 240,180 Z"
+                d={`
+                  M 410,168 L 440,108 C 448,90 460,80 480,76
+                  L 560,68 L 640,66 L 720,68 L 780,74
+                  C 800,78 810,88 816,100 L 850,160
+                  C 854,168 850,172 842,172 L 720,168
+                  L 560,166 L 440,168 Z
+                `}
                 fill="url(#ceramicShine)"
               />
             </motion.g>
@@ -578,38 +1158,60 @@ function CarSilhouette({
               exit={{ opacity: 0 }}
               transition={{ duration: 0.5 }}
             >
-              {/* Hood area PPF outline */}
+              {/* Hood PPF zone */}
               <path
-                d="M 520,180 L 660,188 Q 680,190 680,210 L 680,230 L 620,235 L 520,234 Z"
-                fill="none"
-                stroke="rgba(100,200,255,0.4)"
-                strokeWidth="2"
-                strokeDasharray="6 4"
+                d={`
+                  M 780,172 L 840,172 L 940,180 L 1020,192
+                  C 1040,196 1055,208 1060,220 L 1065,232
+                  L 780,204 Z
+                `}
+                fill="url(#ppfDots)" opacity="0.6"
               />
-              {/* Hood PPF pattern fill */}
               <path
-                d="M 520,180 L 660,188 Q 680,190 680,210 L 680,230 L 620,235 L 520,234 Z"
-                fill="url(#ppfPattern)"
-                opacity="0.5"
+                d={`
+                  M 780,172 L 840,172 L 940,180 L 1020,192
+                  C 1040,196 1055,208 1060,220 L 1065,232
+                  L 780,204 Z
+                `}
+                fill="none" stroke="rgba(100,200,255,0.35)" strokeWidth="1.5" strokeDasharray="8 4"
               />
-              {/* Front bumper PPF */}
+
+              {/* Front bumper PPF zone */}
               <path
-                d="M 660,188 Q 680,190 680,210 L 680,240 Q 680,258 665,260 L 590,264 L 540,266 Q 530,266 530,258 L 530,234 L 620,235 L 660,232 Z"
-                fill="none"
-                stroke="rgba(100,200,255,0.3)"
-                strokeWidth="1.5"
-                strokeDasharray="4 3"
+                d={`
+                  M 1040,200 L 1078,250 C 1082,260 1080,270 1072,280
+                  L 1045,292 L 1000,280 L 890,272 L 875,275
+                  L 875,260 L 1020,252 L 1040,240 Z
+                `}
+                fill="none" stroke="rgba(100,200,255,0.3)" strokeWidth="1.2" strokeDasharray="6 4"
               />
+              <path
+                d={`
+                  M 1040,200 L 1078,250 C 1082,260 1080,270 1072,280
+                  L 1045,292 L 1000,280 L 890,272 L 875,275
+                  L 875,260 L 1020,252 L 1040,240 Z
+                `}
+                fill="url(#ppfDots)" opacity="0.4"
+              />
+
+              {/* Front fender PPF zone */}
+              <path
+                d={`
+                  M 840,172 L 940,180 L 1000,190 L 1000,260
+                  L 890,272 L 840,260 L 840,172 Z
+                `}
+                fill="none" stroke="rgba(100,200,255,0.25)" strokeWidth="1" strokeDasharray="5 4"
+              />
+
               {/* Mirror PPF */}
               <path
-                d="M 558,175 L 572,168 L 576,176 L 564,182 Z"
-                fill="none"
-                stroke="rgba(100,200,255,0.5)"
-                strokeWidth="2"
-                strokeDasharray="3 2"
+                d="M 848,170 L 870,160 L 878,164 L 880,176 L 870,180 L 854,178 Z"
+                fill="none" stroke="rgba(100,200,255,0.5)" strokeWidth="1.5" strokeDasharray="3 2"
               />
-              {/* PPF label */}
-              <text x="610" y="215" fontSize="9" fill="rgba(100,200,255,0.6)" fontFamily="monospace" textAnchor="middle">PPF</text>
+
+              {/* PPF labels */}
+              <text x="940" y="210" fontSize="10" fill="rgba(100,200,255,0.5)" fontFamily="monospace" textAnchor="middle">PPF</text>
+              <text x="980" y="268" fontSize="8" fill="rgba(100,200,255,0.4)" fontFamily="monospace" textAnchor="middle">PROTECTED</text>
             </motion.g>
           )}
         </AnimatePresence>
@@ -623,45 +1225,94 @@ function CarSilhouette({
               exit={{ opacity: 0 }}
             >
               {[
-                { x: 350, y: 150, delay: 0 },
-                { x: 500, y: 200, delay: 0.5 },
-                { x: 250, y: 210, delay: 1.0 },
-                { x: 600, y: 195, delay: 1.5 },
-                { x: 420, y: 120, delay: 0.3 },
-                { x: 180, y: 220, delay: 0.8 },
-                { x: 550, y: 170, delay: 1.2 },
-                { x: 320, y: 230, delay: 0.6 },
-                { x: 470, y: 160, delay: 1.8 },
-                { x: 380, y: 190, delay: 0.2 },
+                { x: 300, y: 200, delay: 0 },
+                { x: 500, y: 140, delay: 0.4 },
+                { x: 700, y: 190, delay: 0.8 },
+                { x: 900, y: 210, delay: 1.2 },
+                { x: 450, y: 110, delay: 0.2 },
+                { x: 600, y: 170, delay: 1.0 },
+                { x: 800, y: 160, delay: 0.6 },
+                { x: 350, y: 230, delay: 1.4 },
+                { x: 650, y: 100, delay: 0.3 },
+                { x: 950, y: 230, delay: 1.6 },
+                { x: 550, y: 220, delay: 0.9 },
+                { x: 750, y: 120, delay: 1.1 },
               ].map((spark, i) => (
                 <motion.g
                   key={i}
                   animate={{
                     opacity: [0, 1, 0],
-                    scale: [0.5, 1.2, 0.5],
+                    scale: [0.3, 1.2, 0.3],
                   }}
                   transition={{
-                    duration: 2,
+                    duration: 1.8,
                     delay: spark.delay,
                     repeat: Infinity,
                     ease: 'easeInOut',
                   }}
                   style={{ originX: `${spark.x}px`, originY: `${spark.y}px` }}
                 >
-                  {/* 4-point star sparkle */}
                   <path
-                    d={`M ${spark.x},${spark.y - 6} L ${spark.x + 2},${spark.y - 2} L ${spark.x + 6},${spark.y} L ${spark.x + 2},${spark.y + 2} L ${spark.x},${spark.y + 6} L ${spark.x - 2},${spark.y + 2} L ${spark.x - 6},${spark.y} L ${spark.x - 2},${spark.y - 2} Z`}
+                    d={`M ${spark.x},${spark.y - 7} L ${spark.x + 2},${spark.y - 2} L ${spark.x + 7},${spark.y} L ${spark.x + 2},${spark.y + 2} L ${spark.x},${spark.y + 7} L ${spark.x - 2},${spark.y + 2} L ${spark.x - 7},${spark.y} L ${spark.x - 2},${spark.y - 2} Z`}
                     fill="white"
-                    opacity="0.8"
+                    opacity="0.85"
                   />
+                  {/* Secondary small sparkle */}
+                  <circle cx={spark.x + 10} cy={spark.y - 5} r="1.5" fill="white" opacity="0.5" />
                 </motion.g>
               ))}
             </motion.g>
           )}
         </AnimatePresence>
 
+        {/* ═══════════════════════════════════════════════════════════════
+            CAR REFLECTION (flipped, faded)
+        ═══════════════════════════════════════════════════════════════ */}
+        <g clipPath="url(#reflectionClip)" opacity="0.08">
+          <g transform="translate(0, 780) scale(1, -1)">
+            {/* Simplified reflection of the body */}
+            <path
+              d={`
+                M 155,292 L 130,270 C 122,260 120,250 122,240 L 130,220
+                C 135,208 145,200 160,196 L 260,178 L 360,170 L 440,168
+                L 560,166 L 720,168 L 840,172 L 940,180 L 1020,192
+                C 1040,196 1055,208 1060,220 L 1078,250
+                C 1082,260 1080,270 1072,280 L 1045,292
+                L 1000,280 L 890,272 L 770,272 L 510,268 L 430,272
+                L 310,272 L 200,280 Z
+              `}
+              fill={bodyColor}
+            />
+            <path
+              d={`
+                M 180,350 C 180,350 170,348 165,340 L 150,320
+                C 145,310 148,298 155,292 L 200,280 L 310,272
+                C 320,271 325,275 325,275 L 325,290 C 325,296 330,300 336,300
+                L 420,300 C 426,300 430,296 430,290 L 430,272 L 510,268
+                L 700,268 L 770,272 L 770,290 C 770,296 774,300 780,300
+                L 864,300 C 870,300 875,296 875,290 L 875,275
+                C 875,275 880,271 890,272 L 1000,280 L 1045,292
+                C 1052,298 1055,310 1050,320 L 1035,340
+                C 1030,348 1020,350 1020,350 Z
+              `}
+              fill={bodyColor}
+            />
+            {/* Reflection roof */}
+            <path
+              d={`
+                M 410,168 L 440,108 C 448,90 460,80 480,76
+                L 560,68 L 640,66 L 720,68 L 780,74
+                C 800,78 810,88 816,100 L 850,160
+                C 854,168 850,172 842,172 L 720,168
+                L 560,166 L 440,168 Z
+              `}
+              fill={bodyColor}
+            />
+          </g>
+        </g>
+
         {/* Ground reflection line */}
-        <line x1="180" y1="308" x2="620" y2="308" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+        <line x1="180" y1="392" x2="1020" y2="392" stroke="rgba(255,255,255,0.03)" strokeWidth="0.5" />
       </svg>
     </div>
   );
@@ -741,7 +1392,7 @@ export default function VehicleVisualizer() {
 
   // Calculate window opacity (1 = clear, lower = darker)
   const windowOpacity = isEnabled('window-tint')
-    ? Math.max(0.1, 1 - tintLevel / 80)
+    ? Math.max(0.08, 1 - tintLevel / 75)
     : 0.85;
 
   // Running total
@@ -860,26 +1511,26 @@ export default function VehicleVisualizer() {
           transition={{ delay: 0.2 }}
           className="flex-1 min-w-0"
         >
-          <div className="relative rounded-2xl bg-gradient-to-b from-rpm-dark/60 via-rpm-black to-rpm-dark/40 border border-rpm-gray/15 p-6 sm:p-10 overflow-hidden">
+          <div className="relative rounded-2xl bg-gradient-to-b from-rpm-dark/60 via-rpm-black to-rpm-dark/40 border border-rpm-gray/15 p-4 sm:p-8 overflow-hidden">
             {/* Ambient background based on body color */}
             <div
-              className="absolute inset-0 opacity-[0.03] pointer-events-none"
+              className="absolute inset-0 opacity-[0.04] pointer-events-none"
               style={{
-                background: `radial-gradient(ellipse at 50% 60%, ${bodyColor} 0%, transparent 70%)`,
+                background: `radial-gradient(ellipse at 60% 50%, ${bodyColor} 0%, transparent 70%)`,
               }}
             />
 
             {/* Subtle grid pattern */}
             <div
-              className="absolute inset-0 pointer-events-none opacity-[0.02]"
+              className="absolute inset-0 pointer-events-none opacity-[0.015]"
               style={{
                 backgroundImage:
                   'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
-                backgroundSize: '40px 40px',
+                backgroundSize: '50px 50px',
               }}
             />
 
-            <div className="relative z-10 flex items-center justify-center min-h-[280px] sm:min-h-[350px]">
+            <div className="relative z-10 flex items-center justify-center min-h-[300px] sm:min-h-[400px]">
               <CarSilhouette
                 bodyColor={bodyColor}
                 windowOpacity={windowOpacity}
@@ -915,7 +1566,7 @@ export default function VehicleVisualizer() {
           initial={{ opacity: 0, x: 30 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.3 }}
-          className="w-full lg:w-[340px] flex-shrink-0"
+          className="w-full lg:w-[360px] flex-shrink-0"
         >
           <div className="rounded-2xl bg-rpm-dark/80 border border-rpm-gray/20 backdrop-blur-sm p-4 space-y-2">
             <div className="flex items-center justify-between mb-3">

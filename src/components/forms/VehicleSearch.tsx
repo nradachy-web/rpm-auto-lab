@@ -54,10 +54,15 @@ export default function VehicleSearch({ onChange, className }: VehicleSearchProp
     setModel("");
     setModels([]);
 
-    fetch(`/api/vehicles?type=makes&year=${year}`)
+    fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/GetMakesForVehicleType/car?format=json`)
       .then((res) => res.json())
       .then((data) => {
-        if (!cancelled) setMakes(data.makes || []);
+        if (!cancelled) {
+          const sorted = (data.Results || [])
+            .map((r: { MakeName: string }) => r.MakeName)
+            .sort((a: string, b: string) => a.localeCompare(b));
+          setMakes(sorted);
+        }
       })
       .catch(() => {
         if (!cancelled) setMakes([]);
@@ -83,10 +88,15 @@ export default function VehicleSearch({ onChange, className }: VehicleSearchProp
     setLoadingModels(true);
     setModel("");
 
-    fetch(`/api/vehicles?type=models&make=${encodeURIComponent(make)}&year=${year}`)
+    fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${year}?format=json`)
       .then((res) => res.json())
       .then((data) => {
-        if (!cancelled) setModels(data.models || []);
+        if (!cancelled) {
+          const sorted = (data.Results || [])
+            .map((r: { Model_Name: string }) => r.Model_Name)
+            .sort((a: string, b: string) => a.localeCompare(b));
+          setModels(sorted);
+        }
       })
       .catch(() => {
         if (!cancelled) setModels([]);

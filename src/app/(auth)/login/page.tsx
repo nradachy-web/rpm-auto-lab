@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import Link from "next/link";
@@ -21,17 +20,9 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const result = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
-      });
-
-      if (result?.error) {
-        setError("Invalid email or password. Please try again.");
-      } else {
-        router.push("/portal/dashboard");
-      }
+      // Demo mode — will wire to NextAuth in production
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      router.push("/portal/dashboard");
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
