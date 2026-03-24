@@ -21,13 +21,13 @@ const CONFIGURATOR_SERVICES = [
 
 // ─── Camera positions per service (like a video game customizer) ────
 const CAMERA_POSITIONS: Record<string, { position: [number, number, number]; target: [number, number, number] }> = {
-  default: { position: [4.5, 2.5, 5], target: [0, 0.7, 0] },
-  "ceramic-coating": { position: [2.5, 1.8, 3], target: [0, 0.9, 0.5] },
-  ppf: { position: [2, 1.3, 2.5], target: [0.5, 0.7, 1.5] },
-  "window-tint": { position: [4, 2, 0.5], target: [0, 1.1, 0] },
-  "vehicle-wraps": { position: [5, 3, 5.5], target: [0, 0.7, 0] },
-  "paint-correction": { position: [1.5, 1.2, 2], target: [0.3, 0.8, 0.8] },
-  detailing: { position: [3.5, 2, -3], target: [0, 0.8, 0] },
+  default: { position: [5, 2.8, 5.5], target: [0, 1.0, 0] },
+  "ceramic-coating": { position: [3, 2.2, 3.5], target: [0, 1.2, 0.5] },
+  ppf: { position: [2.5, 1.5, 3], target: [0.5, 1.0, 1.5] },
+  "window-tint": { position: [4.5, 2.2, 1], target: [0, 1.3, 0] },
+  "vehicle-wraps": { position: [5.5, 3.2, 6], target: [0, 1.0, 0] },
+  "paint-correction": { position: [2, 1.6, 2.5], target: [0.3, 1.1, 0.8] },
+  detailing: { position: [4, 2.5, -3.5], target: [0, 1.0, 0] },
 };
 
 // ─── Animated Camera ─────────────────────────────────────────────────
@@ -90,8 +90,10 @@ function CarModel({
           const combined = meshName + " " + matName;
 
           // Classify by material properties and names
-          // Material_699, _775, _718 are all BLEND mode glass in this model
-          if (mat.transparent || mat.opacity < 1 || combined.includes("glass") || combined.includes("window") || combined.includes("699") || combined.includes("775") || combined.includes("718")) {
+          // Material_699, _775, _718 are BLEND mode in the model = glass
+          // Also catch any material with opacity < 1 or transparency
+          const isBlendMaterial = combined.includes("699") || combined.includes("775") || combined.includes("718");
+          if (mat.transparent || mat.opacity < 1 || isBlendMaterial || combined.includes("glass") || combined.includes("window") || combined.includes("windshield")) {
             glass.push(mat);
           } else if (combined.includes("692") || combined.includes("body") || combined.includes("paint")) {
             // Material_692 is the main body paint (has clearcoat)
@@ -179,30 +181,35 @@ function CarModel({
       });
     }
 
-    // Window Tint — darken glass progressively
+    // Window Tint — darken ALL glass progressively
     if (activeServices.has("window-tint")) {
       glass.forEach((mat) => {
-        // tintLevel: 5 = limo (nearly opaque black), 50 = light tint
-        // At 5%: windows should be almost completely black
-        // At 50%: visible tint but still somewhat transparent
-        const t = tintLevel / 100; // 0.05 (dark) → 0.5 (light)
-        const colorVal = t * 0.15; // 0.0075 (near black) → 0.075 (very dark gray)
-        mat.color.set(new THREE.Color(colorVal, colorVal, colorVal));
-        mat.opacity = 0.98 - t * 0.7; // 0.945 (5% = almost opaque) → 0.63 (50% = tinted)
+        // tintLevel: 5 = limo (essentially opaque black), 50 = light tint
+        const t = tintLevel / 100; // 0.05 → 0.5
+        // Color: at 5% = #000000, at 50% = very dark gray
+        mat.color.set(new THREE.Color(t * 0.08, t * 0.08, t * 0.08));
+        // Opacity: at 5% = 0.99 (nearly solid black), at 50% = 0.7 (tinted but see-through)
+        mat.opacity = 0.99 - t * 0.58;
         mat.transparent = true;
         mat.depthWrite = false;
         mat.side = THREE.DoubleSide;
+        // Remove any textures that might override the tint color
+        if (mat.map) {
+          mat.map = null;
+        }
         mat.needsUpdate = true;
       });
     }
   }, [activeServices, wrapColor, tintLevel, materialCategories]);
 
   return (
-    <Center>
-      <group ref={modelRef} position={[0, 0.7, 0]}>
-        <primitive object={clonedScene} scale={1.2} />
-      </group>
-    </Center>
+    <group position={[0, 1.0, 0]}>
+      <Center disableY>
+        <group ref={modelRef}>
+          <primitive object={clonedScene} scale={1.2} />
+        </group>
+      </Center>
+    </group>
   );
 }
 
@@ -312,7 +319,7 @@ export default function VehicleVisualizer() {
             </div>
 
             <Canvas
-              camera={{ position: [4.5, 2, 5], fov: 40, near: 0.1, far: 100 }}
+              camera={{ position: [5, 2.8, 5.5], fov: 40, near: 0.1, far: 100 }}
               gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.4 }}
               style={{ background: "#111111" }}
             >
@@ -355,20 +362,15 @@ export default function VehicleVisualizer() {
               {/* Warehouse environment for realistic reflections */}
               <Environment preset="warehouse" />
 
-              {/* Ground shadows */}
+              {/* Ground shadow only — no visible floor plane */}
               <ContactShadows
-                position={[0, -0.8, 0]}
-                opacity={0.4}
-                scale={16}
-                blur={2.5}
-                far={6}
+                position={[0, 0, 0]}
+                opacity={0.35}
+                scale={18}
+                blur={2}
+                far={8}
+                color="#000000"
               />
-
-              {/* Shop floor — dark concrete look */}
-              <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.82, 0]} receiveShadow>
-                <planeGeometry args={[60, 60]} />
-                <meshStandardMaterial color="#151515" roughness={0.7} metalness={0.1} />
-              </mesh>
 
               {/* Animated camera that moves to service focus points */}
               <AnimatedCamera
