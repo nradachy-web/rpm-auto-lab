@@ -127,69 +127,81 @@ export default function Hero() {
             {/* Inner decorative ring */}
             <div className="absolute inset-[30px] rounded-full border border-rpm-gray/20" />
 
-            {/* Tick marks around the ring — tachometer style */}
-            {Array.from({ length: 24 }).map((_, i) => (
-              <div
-                key={i}
-                className="absolute top-1/2 left-1/2 h-[2px] origin-left"
-                style={{
-                  width: i % 3 === 0 ? "18px" : "10px",
-                  transform: `rotate(${i * 15}deg) translateX(${140}px)`,
-                  background:
-                    i >= 16
-                      ? "rgba(220, 38, 38, 0.6)"
-                      : "rgba(138, 138, 138, 0.3)",
-                }}
-              />
-            ))}
+            {/* Tick marks — tachometer style, redline in upper-right (1-2 o'clock) */}
+            {Array.from({ length: 24 }).map((_, i) => {
+              const angle = i * 15;
+              // Redline zone: ticks from ~285° to 345° (roughly 19-23) = upper right quadrant
+              const isRedline = angle >= 285 && angle <= 345;
+              const isMajor = i % 3 === 0;
+              return (
+                <div
+                  key={i}
+                  className="absolute top-1/2 left-1/2 origin-left"
+                  style={{
+                    width: isMajor ? "16px" : "8px",
+                    height: isMajor ? "2.5px" : "1.5px",
+                    transform: `rotate(${angle}deg) translateX(${135}px)`,
+                    background: isRedline
+                      ? "rgba(220, 38, 38, 0.7)"
+                      : "rgba(138, 138, 138, 0.25)",
+                    borderRadius: "1px",
+                  }}
+                />
+              );
+            })}
 
-            {/* Tachometer needle — revs on page load */}
+            {/* Tachometer needle — sweeps from idle (7:30) to redline (1:30) on load */}
             <motion.div
               className="absolute top-1/2 left-1/2 origin-left z-10"
-              style={{ width: "38%", height: "3px", marginTop: "-1.5px", marginLeft: "0px" }}
-              initial={{ rotate: -120 }}
-              animate={{ rotate: [-120, 110, 85, 105, 95] }}
+              style={{ width: "36%", height: "2.5px", marginTop: "-1.25px" }}
+              initial={{ rotate: 135 }}
+              animate={{ rotate: [135, -50, -30, -48, -42] }}
               transition={{
-                duration: 2.5,
-                delay: 1,
-                ease: [0.25, 0.1, 0.25, 1],
-                times: [0, 0.5, 0.65, 0.8, 1],
+                duration: 2.8,
+                delay: 1.2,
+                ease: "easeOut",
+                times: [0, 0.55, 0.72, 0.86, 1],
               }}
             >
-              {/* Needle body */}
-              <div className="w-full h-full bg-gradient-to-r from-rpm-red via-rpm-red to-transparent rounded-full" />
-              {/* Needle glow */}
-              <div className="absolute inset-0 bg-gradient-to-r from-rpm-red/60 to-transparent blur-[2px] rounded-full" />
+              {/* Needle body — tapers to a point */}
+              <div className="w-full h-full rounded-full" style={{
+                background: "linear-gradient(to right, #dc2626 0%, #dc2626 70%, transparent 100%)",
+              }} />
+              {/* Needle glow trail */}
+              <div className="absolute inset-0 rounded-full blur-[3px]" style={{
+                background: "linear-gradient(to right, rgba(220,38,38,0.5) 0%, transparent 80%)",
+              }} />
             </motion.div>
 
-            {/* Center hub cap over needle pivot */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-rpm-dark border-2 border-rpm-gray/40 z-20" />
+            {/* Center hub cap — brushed metal look */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-gradient-to-br from-rpm-gray to-rpm-dark border border-rpm-silver/20 z-20 shadow-[0_0_6px_rgba(0,0,0,0.5)]" />
 
-            {/* Center RPM text */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
+            {/* Center RPM text — more visible */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               <motion.span
-                className="text-5xl xl:text-6xl font-black text-rpm-white/10 tracking-wider"
+                className="text-4xl xl:text-5xl font-black tracking-wider"
+                style={{ color: "rgba(255,255,255,0.08)" }}
                 initial={{ opacity: 0 }}
-                animate={{ opacity: 0.1 }}
-                transition={{ duration: 1, delay: 0.5 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 1.5, delay: 0.5 }}
               >
                 RPM
               </motion.span>
-              <span className="text-[10px] uppercase tracking-[0.3em] text-rpm-silver/30 mt-1">
+              <span className="text-[9px] uppercase tracking-[0.3em] text-rpm-silver/20 mt-0.5">
                 Auto Lab
               </span>
             </div>
 
-            {/* Red glow at the "redline" zone — pulses after needle hits */}
+            {/* Red glow at the "redline" zone (upper right quadrant, ~1-2 o'clock) */}
             <motion.div
               className="absolute inset-0 rounded-full pointer-events-none"
               style={{
                 background:
-                  "conic-gradient(from 240deg, transparent 0deg, rgba(220,38,38,0.08) 40deg, transparent 80deg)",
+                  "conic-gradient(from 270deg, transparent 0deg, rgba(220,38,38,0.1) 30deg, rgba(220,38,38,0.06) 60deg, transparent 90deg)",
               }}
               initial={{ opacity: 0 }}
-              animate={{ opacity: [0, 0, 1, 0.6, 1] }}
-              transition={{ duration: 3, delay: 1, times: [0, 0.4, 0.6, 0.8, 1] }}
+              animate={{ opacity: [0, 0, 1, 0.5, 0.8] }}
+              transition={{ duration: 3.5, delay: 1.2, times: [0, 0.4, 0.6, 0.8, 1] }}
             />
           </motion.div>
         </div>

@@ -28,6 +28,13 @@ export const metadata: Metadata = {
     "Oakland County",
     "Michigan",
   ],
+  icons: {
+    icon: [
+      { url: "/rpm-auto-lab/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/rpm-auto-lab/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: "/rpm-auto-lab/apple-touch-icon.png",
+  },
   openGraph: {
     title: "RPM Auto Lab | Revive • Protect • Maintain",
     description:

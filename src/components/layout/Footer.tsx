@@ -268,7 +268,7 @@ export default function Footer() {
             ))}
             <span className="text-xs text-rpm-silver/30">|</span>
             <a
-              href="https://app.modernapexstrategies.com"
+              href="https://modernapexstrategies.com"
               target="_blank"
               rel="noopener noreferrer"
               className="group inline-flex items-center gap-1 text-xs text-rpm-silver/40 hover:text-rpm-red transition-colors duration-200"
