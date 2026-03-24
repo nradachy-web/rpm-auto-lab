@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { BASE_PATH } from "@/lib/constants";
 
 export default function AuthLayout({
   children,
@@ -15,11 +16,11 @@ export default function AuthLayout({
       <div className="relative z-10 mb-8">
         <Link href="/" className="inline-block">
           <Image
-            src="/logo.png"
+            src={`${BASE_PATH}/logo.png`}
             alt="RPM Auto Lab"
             width={160}
             height={48}
-            className="h-12 w-auto"
+            className="h-12 w-auto invert brightness-200"
             priority
           />
         </Link>

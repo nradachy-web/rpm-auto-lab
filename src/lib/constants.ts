@@ -1,3 +1,6 @@
+// Base path for static assets (must match next.config.ts basePath)
+export const BASE_PATH = "/rpm-auto-lab";
+
 // RPM Auto Lab brand constants
 export const BRAND = {
   name: "RPM Auto Lab",

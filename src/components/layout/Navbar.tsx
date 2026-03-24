@@ -6,7 +6,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, Phone, ChevronRight } from "lucide-react";
-import { NAV_LINKS, BRAND } from "@/lib/constants";
+import { NAV_LINKS, BRAND, BASE_PATH } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 export default function Navbar() {
@@ -60,7 +60,7 @@ export default function Navbar() {
             {/* Logo — dramatic weight contrast */}
             <Link href="/" className="relative flex items-center gap-3 group">
               <Image
-                src="/logo.png"
+                src={`${BASE_PATH}/logo.png`}
                 alt={BRAND.name}
                 width={48}
                 height={48}
@@ -194,7 +194,7 @@ export default function Navbar() {
                 <div className="flex items-center justify-between px-6 py-5 border-b border-rpm-gray/30">
                   <div className="flex items-center gap-3">
                     <Image
-                      src="/logo.png"
+                      src={`${BASE_PATH}/logo.png`}
                       alt={BRAND.name}
                       width={36}
                       height={36}

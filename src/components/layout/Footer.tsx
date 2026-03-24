@@ -29,7 +29,7 @@ function FacebookIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-import { BRAND, SERVICES, NAV_LINKS } from "@/lib/constants";
+import { BRAND, SERVICES, NAV_LINKS, BASE_PATH } from "@/lib/constants";
 
 const footerLinks = [
   { href: "/privacy", label: "Privacy Policy" },
@@ -79,7 +79,7 @@ export default function Footer() {
           >
             <Link href="/" className="inline-flex items-center gap-3 group">
               <Image
-                src="/logo.png"
+                src={`${BASE_PATH}/logo.png`}
                 alt={BRAND.name}
                 width={40}
                 height={40}
