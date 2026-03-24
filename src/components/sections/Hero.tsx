@@ -143,23 +143,53 @@ export default function Hero() {
               />
             ))}
 
+            {/* Tachometer needle — revs on page load */}
+            <motion.div
+              className="absolute top-1/2 left-1/2 origin-left z-10"
+              style={{ width: "38%", height: "3px", marginTop: "-1.5px", marginLeft: "0px" }}
+              initial={{ rotate: -120 }}
+              animate={{ rotate: [-120, 110, 85, 105, 95] }}
+              transition={{
+                duration: 2.5,
+                delay: 1,
+                ease: [0.25, 0.1, 0.25, 1],
+                times: [0, 0.5, 0.65, 0.8, 1],
+              }}
+            >
+              {/* Needle body */}
+              <div className="w-full h-full bg-gradient-to-r from-rpm-red via-rpm-red to-transparent rounded-full" />
+              {/* Needle glow */}
+              <div className="absolute inset-0 bg-gradient-to-r from-rpm-red/60 to-transparent blur-[2px] rounded-full" />
+            </motion.div>
+
+            {/* Center hub cap over needle pivot */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-rpm-dark border-2 border-rpm-gray/40 z-20" />
+
             {/* Center RPM text */}
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-5xl xl:text-6xl font-black text-rpm-white/10 tracking-wider">
+              <motion.span
+                className="text-5xl xl:text-6xl font-black text-rpm-white/10 tracking-wider"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.1 }}
+                transition={{ duration: 1, delay: 0.5 }}
+              >
                 RPM
-              </span>
+              </motion.span>
               <span className="text-[10px] uppercase tracking-[0.3em] text-rpm-silver/30 mt-1">
                 Auto Lab
               </span>
             </div>
 
-            {/* Red glow at the "redline" zone */}
-            <div
+            {/* Red glow at the "redline" zone — pulses after needle hits */}
+            <motion.div
               className="absolute inset-0 rounded-full pointer-events-none"
               style={{
                 background:
                   "conic-gradient(from 240deg, transparent 0deg, rgba(220,38,38,0.08) 40deg, transparent 80deg)",
               }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: [0, 0, 1, 0.6, 1] }}
+              transition={{ duration: 3, delay: 1, times: [0, 0.4, 0.6, 0.8, 1] }}
             />
           </motion.div>
         </div>
