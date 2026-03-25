@@ -201,17 +201,31 @@ export default function Hero() {
               </span>
             </div>
 
-            {/* ── NEEDLE ── Tapered, dramatic sweep with bounce */}
+            {/* ── NEEDLE ── Ignition rev: idle → snap to redline → blip → settle */}
             <motion.div
               className="absolute top-1/2 left-1/2 origin-left z-10"
               style={{ width: "38%", height: "0px", marginTop: "0px" }}
               initial={{ rotate: 135 }}
-              animate={{ rotate: [135, 135, -55, -25, -48, -35, -42] }}
+              animate={{
+                rotate: [
+                  135,   // 0.00 — idle (0 RPM)
+                  130,   // 0.08 — tiny bump (engine catches)
+                  120,   // 0.12 — settling at ~800 RPM idle
+                  -50,   // 0.35 — SNAP to redline (7500 RPM) — fast!
+                  -55,   // 0.38 — slight overshoot past redline
+                  -10,   // 0.48 — fall back to ~5500 RPM
+                  -45,   // 0.60 — second blip back up to ~7000
+                  15,    // 0.72 — drop to ~4500 RPM
+                  45,    // 0.82 — settle toward ~3500 RPM
+                  55,    // 0.92 — cruise at ~3000 RPM
+                  50,    // 1.00 — final settle ~3200 RPM
+                ],
+              }}
               transition={{
-                duration: 3.5,
-                delay: 0.8,
-                ease: "easeOut",
-                times: [0, 0.15, 0.55, 0.68, 0.78, 0.88, 1],
+                duration: 4,
+                delay: 1,
+                ease: [0.25, 0.1, 0.25, 1],
+                times: [0, 0.08, 0.12, 0.35, 0.38, 0.48, 0.60, 0.72, 0.82, 0.92, 1],
               }}
             >
               {/* Needle — tapered SVG for proper look */}
@@ -246,42 +260,56 @@ export default function Hero() {
               <div className="absolute inset-[4px] rounded-full bg-gradient-to-br from-rpm-gray/20 to-transparent" />
             </div>
 
-            {/* ── CENTER LOGO ── The actual RPM Auto Lab logo */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            {/* ── CENTER LOGO ── blended seamlessly into gauge face */}
+            <div className="absolute inset-[22px] rounded-full flex items-center justify-center pointer-events-none overflow-hidden">
               <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 0.12, scale: 1 }}
-                transition={{ duration: 1.5, delay: 0.6 }}
+                className="rounded-full"
+                initial={{ opacity: 0, scale: 0.85 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 2, delay: 0.5 }}
+                style={{ mixBlendMode: "screen" }}
               >
                 <Image
                   src={`${BASE_PATH}/logo.png`}
                   alt=""
-                  width={180}
-                  height={180}
-                  className="invert brightness-200 w-[140px] h-[140px] xl:w-[170px] xl:h-[170px]"
+                  width={200}
+                  height={200}
+                  className="invert w-[130px] h-[130px] xl:w-[160px] xl:h-[160px] opacity-[0.15]"
                   aria-hidden="true"
                 />
               </motion.div>
             </div>
 
-            {/* Redline glow zone — pulses when needle hits */}
+            {/* Redline glow zone — flares when needle hits redline, fades as it settles */}
             <motion.div
               className="absolute inset-0 rounded-full pointer-events-none"
               style={{
-                background: "conic-gradient(from 285deg, transparent 0deg, rgba(220,38,38,0.12) 20deg, rgba(220,38,38,0.08) 50deg, transparent 75deg)",
+                background: "conic-gradient(from 285deg, transparent 0deg, rgba(220,38,38,0.15) 20deg, rgba(220,38,38,0.08) 50deg, transparent 75deg)",
               }}
               initial={{ opacity: 0 }}
-              animate={{ opacity: [0, 0, 0, 1, 0.5, 0.9] }}
-              transition={{ duration: 4, delay: 0.8, times: [0, 0.3, 0.5, 0.6, 0.8, 1] }}
+              animate={{ opacity: [0, 0, 0, 1, 0.3, 0.8, 0.2, 0.1] }}
+              transition={{ duration: 5, delay: 1, times: [0, 0.2, 0.33, 0.38, 0.5, 0.6, 0.75, 1] }}
             />
 
-            {/* Redline flash — brief bright flash when needle first hits redline */}
+            {/* Redline FLASH — bright burst at the moment needle snaps to redline */}
             <motion.div
-              className="absolute inset-[20px] rounded-full pointer-events-none"
+              className="absolute inset-[15px] rounded-full pointer-events-none"
               initial={{ opacity: 0 }}
-              animate={{ opacity: [0, 0, 0.15, 0, 0] }}
-              transition={{ duration: 3.5, delay: 0.8, times: [0, 0.5, 0.56, 0.7, 1] }}
-              style={{ background: "radial-gradient(circle at 70% 25%, rgba(220,38,38,0.4), transparent 60%)" }}
+              animate={{ opacity: [0, 0, 0.25, 0, 0.12, 0] }}
+              transition={{ duration: 4, delay: 1, times: [0, 0.33, 0.37, 0.45, 0.6, 0.75] }}
+              style={{ background: "radial-gradient(circle at 65% 20%, rgba(220,38,38,0.5), transparent 55%)" }}
+            />
+
+            {/* Outer ring pulse at redline */}
+            <motion.div
+              className="absolute -inset-1 rounded-full pointer-events-none border-2 border-rpm-red/0"
+              animate={{
+                borderColor: [
+                  "rgba(220,38,38,0)", "rgba(220,38,38,0)", "rgba(220,38,38,0.3)",
+                  "rgba(220,38,38,0)", "rgba(220,38,38,0.15)", "rgba(220,38,38,0)",
+                ],
+              }}
+              transition={{ duration: 5, delay: 1, times: [0, 0.33, 0.38, 0.48, 0.6, 0.75] }}
             />
           </motion.div>
         </div>
