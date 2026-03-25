@@ -19,15 +19,72 @@ const CONFIGURATOR_SERVICES = [
   { id: "detailing", name: "Full Detail", price: 149, icon: "droplets", description: "Interior & exterior restoration" },
 ];
 
-// ─── Camera positions per service (like a video game customizer) ────
-const CAMERA_POSITIONS: Record<string, { position: [number, number, number]; target: [number, number, number] }> = {
-  default: { position: [5, 2.8, 5.5], target: [0, 1.0, 0] },
-  "ceramic-coating": { position: [3, 2.2, 3.5], target: [0, 1.2, 0.5] },
-  ppf: { position: [2.5, 1.5, 3], target: [0.5, 1.0, 1.5] },
-  "window-tint": { position: [4.5, 2.2, 1], target: [0, 1.3, 0] },
-  "vehicle-wraps": { position: [5.5, 3.2, 6], target: [0, 1.0, 0] },
-  "paint-correction": { position: [2, 1.6, 2.5], target: [0.3, 1.1, 0.8] },
-  detailing: { position: [4, 2.5, -3.5], target: [0, 1.0, 0] },
+// ─── Camera positions per service — proper angles for each ──────────
+// The BMW M4 model faces +Z (front) and -Z (rear)
+// X = left(-)/right(+), Y = up, Z = front(+)/rear(-)
+const CAMERA_POSITIONS: Record<string, {
+  position: [number, number, number];
+  target: [number, number, number];
+  infotag?: { position: [number, number, number]; stats: string[] };
+}> = {
+  default: {
+    position: [5, 2.5, 4.5],
+    target: [0, 0.8, 0],
+  },
+  "ceramic-coating": {
+    // Front 3/4 view — see the hood and body panels where coating goes
+    position: [3.5, 1.8, 4],
+    target: [0, 0.8, 1],
+    infotag: {
+      position: [1.2, 1.8, 1.5],
+      stats: ["9H Hardness", "5+ Year Durability", "Hydrophobic Surface", "UV Protection"],
+    },
+  },
+  ppf: {
+    // Front view — shows hood, bumper, fenders where PPF is applied
+    position: [0.5, 2, 6],
+    target: [0, 0.6, 1.5],
+    infotag: {
+      position: [-1.5, 1.6, 2],
+      stats: ["Self-Healing Film", "10yr Warranty", "Rock Chip Defense", "Optically Clear"],
+    },
+  },
+  "window-tint": {
+    // Side profile — shows all windows clearly
+    position: [6, 1.8, 0],
+    target: [0, 1.0, 0],
+    infotag: {
+      position: [1.5, 2.0, 0],
+      stats: ["99% UV Rejection", "85% Heat Block", "No Signal Loss", "Lifetime Warranty"],
+    },
+  },
+  "vehicle-wraps": {
+    // Wide 3/4 view — show full body for color appreciation
+    position: [5, 2.8, 5],
+    target: [0, 0.7, 0],
+    infotag: {
+      position: [-1.8, 1.5, 0.5],
+      stats: ["500+ Colors", "3M Certified", "Fully Reversible", "5-7yr Lifespan"],
+    },
+  },
+  "paint-correction": {
+    // Close on a body panel — hood area to see paint surface
+    position: [2.5, 1.5, 3.5],
+    target: [0.8, 0.9, 1.8],
+    infotag: {
+      position: [0.5, 1.8, 2],
+      stats: ["Multi-Stage Polish", "Swirl Removal", "Gloss Verified", "Paint-Safe"],
+    },
+  },
+  detailing: {
+    // Rear 3/4 view — shows the full car's finish
+    position: [4, 2.2, -4],
+    target: [0, 0.8, 0],
+    infotag: {
+      position: [1.5, 1.6, -1],
+      stats: ["Hand Wash Only", "Interior + Exterior", "Leather Treatment", "Engine Bay"],
+    },
+  },
 };
 
 // Scale camera positions further back on mobile
@@ -288,6 +345,49 @@ function CarModel({
   );
 }
 
+// ─── Video-game style Infotag overlay ────────────────────────────────
+function ServiceInfotag({ position, stats, serviceName }: {
+  position: [number, number, number];
+  stats: string[];
+  serviceName: string;
+}) {
+  return (
+    <Html position={position} center distanceFactor={8} style={{ pointerEvents: "none" }}>
+      <div className="relative animate-fadeIn">
+        {/* Connecting line dot */}
+        <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-rpm-red shadow-[0_0_8px_rgba(220,38,38,0.8)]" />
+        {/* Card */}
+        <div className="bg-rpm-dark/90 backdrop-blur-md border border-rpm-red/30 rounded-lg px-3 py-2 shadow-[0_0_20px_rgba(0,0,0,0.5),0_0_10px_rgba(220,38,38,0.1)] min-w-[140px]">
+          <div className="text-[9px] font-bold uppercase tracking-[0.15em] text-rpm-red mb-1.5 border-b border-rpm-red/20 pb-1">
+            {serviceName}
+          </div>
+          {stats.map((stat, i) => (
+            <div key={i} className="flex items-center gap-1.5 py-0.5">
+              <div className="w-1 h-1 rounded-full bg-rpm-red flex-shrink-0" />
+              <span className="text-[10px] text-rpm-white font-medium whitespace-nowrap">{stat}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Html>
+  );
+}
+
+// ─── Reflective Epoxy Floor ─────────────────────────────────────────
+function ShopFloor() {
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
+      <planeGeometry args={[30, 30]} />
+      <meshStandardMaterial
+        color="#0c0c0c"
+        roughness={0.15}
+        metalness={0.4}
+        envMapIntensity={0.5}
+      />
+    </mesh>
+  );
+}
+
 // ─── Loading Spinner ─────────────────────────────────────────────────
 function Loader() {
   return (
@@ -433,7 +533,9 @@ export default function VehicleVisualizer() {
 
                 <Environment preset="warehouse" />
 
-                <ContactShadows position={[0, 0, 0]} opacity={0.35} scale={18} blur={2} far={8} color="#000000" />
+                {/* Reflective epoxy shop floor */}
+                <ShopFloor />
+                <ContactShadows position={[0, 0.01, 0]} opacity={0.3} scale={16} blur={2.5} far={6} color="#000000" />
 
                 <AnimatedCamera
                   targetPos={cameraTarget.position}
@@ -458,6 +560,17 @@ export default function VehicleVisualizer() {
                     wrapColor={wrapColor}
                     tintLevel={tintLevel}
                   />
+
+                  {/* Video game infotag — shows stats for the active service */}
+                  {cameraTarget.infotag && (
+                    <ServiceInfotag
+                      position={cameraTarget.infotag.position}
+                      stats={cameraTarget.infotag.stats}
+                      serviceName={
+                        CONFIGURATOR_SERVICES.find((s) => s.id === lastActiveService)?.name || ""
+                      }
+                    />
+                  )}
                 </Suspense>
               </Canvas>
 
