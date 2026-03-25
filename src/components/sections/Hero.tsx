@@ -1,7 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Image from "next/image";
 import Button from "@/components/ui/Button";
+import { BASE_PATH } from "@/lib/constants";
 import { ChevronDown } from "lucide-react";
 
 export default function Hero() {
@@ -103,105 +105,183 @@ export default function Hero() {
           </motion.div>
         </div>
 
-        {/* RIGHT SIDE — 40% — abstract tachometer ring */}
+        {/* RIGHT SIDE — 40% — Premium Tachometer with Logo */}
         <div className="lg:col-span-2 hidden lg:flex items-center justify-center">
           <motion.div
-            className="relative w-[340px] h-[340px] xl:w-[420px] xl:h-[420px]"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 1.2, delay: 0.5 }}
+            className="relative w-[360px] h-[360px] xl:w-[440px] xl:h-[440px]"
+            initial={{ opacity: 0, scale: 0.85, rotate: -10 }}
+            animate={{ opacity: 1, scale: 1, rotate: 0 }}
+            transition={{ duration: 1.5, delay: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
           >
-            {/* Outer rotating ring with M-stripe gradient */}
+            {/* Outer glow ring */}
+            <div className="absolute -inset-4 rounded-full bg-[radial-gradient(circle,rgba(220,38,38,0.08)_0%,transparent_70%)]" />
+
+            {/* Outer M-stripe ring — slow rotate */}
             <motion.div
               className="absolute inset-0 rounded-full"
-              style={{
-                background: "conic-gradient(from 0deg, #0066B1, #1B1464, #DC2626, #0066B1)",
-                opacity: 0.25,
-              }}
+              style={{ background: "conic-gradient(from 0deg, #0066B1, #1B1464, #DC2626, #0066B1)", opacity: 0.3 }}
               animate={{ rotate: 360 }}
-              transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+              transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
             />
-            {/* Inner cutout to make it a ring */}
-            <div className="absolute inset-[3px] rounded-full bg-gradient-to-br from-[#0d0d0d] to-rpm-dark" />
+            {/* Inner cutout */}
+            <div className="absolute inset-[3px] rounded-full bg-gradient-to-br from-[#0a0a0a] via-[#0f0f0f] to-[#0a0a0a]" />
 
-            {/* Inner decorative ring */}
-            <div className="absolute inset-[30px] rounded-full border border-rpm-gray/20" />
+            {/* Subtle inner ring */}
+            <div className="absolute inset-[20px] rounded-full border border-rpm-gray/10" />
 
-            {/* Tick marks — tachometer style, redline in upper-right (1-2 o'clock) */}
-            {Array.from({ length: 24 }).map((_, i) => {
-              const angle = i * 15;
-              // Redline zone: ticks from ~285° to 345° (roughly 19-23) = upper right quadrant
-              const isRedline = angle >= 285 && angle <= 345;
-              const isMajor = i % 3 === 0;
+            {/* Gauge face — subtle radial gradient for depth */}
+            <div className="absolute inset-[22px] rounded-full bg-[radial-gradient(circle_at_40%_35%,rgba(255,255,255,0.03)_0%,transparent_60%)]" />
+
+            {/* Major tick marks with RPM numbers */}
+            {Array.from({ length: 9 }).map((_, i) => {
+              // 0-8 representing 0-8000 RPM
+              // Gauge spans from 135° (0 RPM, 7:30 position) to -45° (8000 RPM, 1:30 position)
+              // Total sweep: 180° over 9 marks
+              const angle = 135 - i * 22.5;
+              const isRedline = i >= 7; // 7000+ RPM
+              const radius = 155; // xl size adjusted
+              return (
+                <div key={`major-${i}`}>
+                  {/* Major tick */}
+                  <div
+                    className="absolute top-1/2 left-1/2 origin-left"
+                    style={{
+                      width: "14px",
+                      height: isRedline ? "3px" : "2px",
+                      transform: `rotate(${angle}deg) translateX(${radius - 14}px)`,
+                      background: isRedline ? "rgba(220, 38, 38, 0.8)" : "rgba(200, 200, 200, 0.35)",
+                      borderRadius: "1px",
+                    }}
+                  />
+                  {/* Number label */}
+                  <div
+                    className="absolute top-1/2 left-1/2 pointer-events-none"
+                    style={{
+                      transform: `rotate(${angle}deg) translateX(${radius - 30}px) rotate(${-angle}deg)`,
+                      marginTop: "-6px",
+                      marginLeft: "-6px",
+                    }}
+                  >
+                    <span
+                      className="text-[10px] font-bold block text-center w-3"
+                      style={{ color: isRedline ? "rgba(220, 38, 38, 0.7)" : "rgba(180, 180, 180, 0.3)" }}
+                    >
+                      {i}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Minor tick marks between majors */}
+            {Array.from({ length: 40 }).map((_, i) => {
+              const angle = 135 - i * 4.5;
+              if (angle < -45) return null;
+              // Skip positions where major ticks are
+              if (i % 5 === 0) return null;
+              const isRedline = angle < -112.5; // past 7000 RPM
               return (
                 <div
-                  key={i}
+                  key={`minor-${i}`}
                   className="absolute top-1/2 left-1/2 origin-left"
                   style={{
-                    width: isMajor ? "16px" : "8px",
-                    height: isMajor ? "2.5px" : "1.5px",
-                    transform: `rotate(${angle}deg) translateX(${135}px)`,
-                    background: isRedline
-                      ? "rgba(220, 38, 38, 0.7)"
-                      : "rgba(138, 138, 138, 0.25)",
-                    borderRadius: "1px",
+                    width: "6px",
+                    height: "1px",
+                    transform: `rotate(${angle}deg) translateX(${141}px)`,
+                    background: isRedline ? "rgba(220, 38, 38, 0.4)" : "rgba(138, 138, 138, 0.15)",
                   }}
                 />
               );
             })}
 
-            {/* Tachometer needle — sweeps from idle (7:30) to redline (1:30) on load */}
-            <motion.div
-              className="absolute top-1/2 left-1/2 origin-left z-10"
-              style={{ width: "36%", height: "2.5px", marginTop: "-1.25px" }}
-              initial={{ rotate: 135 }}
-              animate={{ rotate: [135, -50, -30, -48, -42] }}
-              transition={{
-                duration: 2.8,
-                delay: 1.2,
-                ease: "easeOut",
-                times: [0, 0.55, 0.72, 0.86, 1],
-              }}
-            >
-              {/* Needle body — tapers to a point */}
-              <div className="w-full h-full rounded-full" style={{
-                background: "linear-gradient(to right, #dc2626 0%, #dc2626 70%, transparent 100%)",
-              }} />
-              {/* Needle glow trail */}
-              <div className="absolute inset-0 rounded-full blur-[3px]" style={{
-                background: "linear-gradient(to right, rgba(220,38,38,0.5) 0%, transparent 80%)",
-              }} />
-            </motion.div>
-
-            {/* Center hub cap — brushed metal look */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-gradient-to-br from-rpm-gray to-rpm-dark border border-rpm-silver/20 z-20 shadow-[0_0_6px_rgba(0,0,0,0.5)]" />
-
-            {/* Center RPM text — more visible */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <motion.span
-                className="text-4xl xl:text-5xl font-black tracking-wider"
-                style={{ color: "rgba(255,255,255,0.08)" }}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 1.5, delay: 0.5 }}
-              >
-                RPM
-              </motion.span>
-              <span className="text-[9px] uppercase tracking-[0.3em] text-rpm-silver/20 mt-0.5">
-                Auto Lab
+            {/* RPM x1000 label */}
+            <div className="absolute bottom-[28%] left-1/2 -translate-x-1/2 pointer-events-none">
+              <span className="text-[8px] uppercase tracking-[0.15em] text-rpm-silver/20 font-medium">
+                rpm x1000
               </span>
             </div>
 
-            {/* Red glow at the "redline" zone (upper right quadrant, ~1-2 o'clock) */}
+            {/* ── NEEDLE ── Tapered, dramatic sweep with bounce */}
+            <motion.div
+              className="absolute top-1/2 left-1/2 origin-left z-10"
+              style={{ width: "38%", height: "0px", marginTop: "0px" }}
+              initial={{ rotate: 135 }}
+              animate={{ rotate: [135, 135, -55, -25, -48, -35, -42] }}
+              transition={{
+                duration: 3.5,
+                delay: 0.8,
+                ease: "easeOut",
+                times: [0, 0.15, 0.55, 0.68, 0.78, 0.88, 1],
+              }}
+            >
+              {/* Needle — tapered SVG for proper look */}
+              <svg
+                className="absolute -top-[6px] left-0"
+                width="100%"
+                height="12"
+                viewBox="0 0 160 12"
+                preserveAspectRatio="none"
+              >
+                <defs>
+                  <linearGradient id="needleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#dc2626" />
+                    <stop offset="85%" stopColor="#dc2626" />
+                    <stop offset="100%" stopColor="#dc2626" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                {/* Tapered needle shape: wide at base, thin at tip */}
+                <polygon points="0,3 0,9 155,5.5 155,6.5" fill="url(#needleGrad)" />
+              </svg>
+              {/* Glow trail */}
+              <div
+                className="absolute -top-[4px] left-0 right-0 h-[8px] blur-[4px] rounded-full"
+                style={{ background: "linear-gradient(to right, rgba(220,38,38,0.6) 0%, rgba(220,38,38,0.2) 60%, transparent 90%)" }}
+              />
+            </motion.div>
+
+            {/* Center hub — layered for depth */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full z-20">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-rpm-gray/60 to-rpm-dark shadow-[0_0_10px_rgba(0,0,0,0.8)]" />
+              <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-[#1a1a1a] to-[#0a0a0a]" />
+              <div className="absolute inset-[4px] rounded-full bg-gradient-to-br from-rpm-gray/20 to-transparent" />
+            </div>
+
+            {/* ── CENTER LOGO ── The actual RPM Auto Lab logo */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 0.12, scale: 1 }}
+                transition={{ duration: 1.5, delay: 0.6 }}
+              >
+                <Image
+                  src={`${BASE_PATH}/logo.png`}
+                  alt=""
+                  width={180}
+                  height={180}
+                  className="invert brightness-200 w-[140px] h-[140px] xl:w-[170px] xl:h-[170px]"
+                  aria-hidden="true"
+                />
+              </motion.div>
+            </div>
+
+            {/* Redline glow zone — pulses when needle hits */}
             <motion.div
               className="absolute inset-0 rounded-full pointer-events-none"
               style={{
-                background:
-                  "conic-gradient(from 270deg, transparent 0deg, rgba(220,38,38,0.1) 30deg, rgba(220,38,38,0.06) 60deg, transparent 90deg)",
+                background: "conic-gradient(from 285deg, transparent 0deg, rgba(220,38,38,0.12) 20deg, rgba(220,38,38,0.08) 50deg, transparent 75deg)",
               }}
               initial={{ opacity: 0 }}
-              animate={{ opacity: [0, 0, 1, 0.5, 0.8] }}
-              transition={{ duration: 3.5, delay: 1.2, times: [0, 0.4, 0.6, 0.8, 1] }}
+              animate={{ opacity: [0, 0, 0, 1, 0.5, 0.9] }}
+              transition={{ duration: 4, delay: 0.8, times: [0, 0.3, 0.5, 0.6, 0.8, 1] }}
+            />
+
+            {/* Redline flash — brief bright flash when needle first hits redline */}
+            <motion.div
+              className="absolute inset-[20px] rounded-full pointer-events-none"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: [0, 0, 0.15, 0, 0] }}
+              transition={{ duration: 3.5, delay: 0.8, times: [0, 0.5, 0.56, 0.7, 1] }}
+              style={{ background: "radial-gradient(circle at 70% 25%, rgba(220,38,38,0.4), transparent 60%)" }}
             />
           </motion.div>
         </div>
