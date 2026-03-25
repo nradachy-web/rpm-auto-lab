@@ -19,71 +19,55 @@ const CONFIGURATOR_SERVICES = [
   { id: "detailing", name: "Full Detail", price: 149, icon: "droplets", description: "Interior & exterior restoration" },
 ];
 
-// ─── Camera positions per service — proper angles for each ──────────
-// The BMW M4 model faces +Z (front) and -Z (rear)
-// X = left(-)/right(+), Y = up, Z = front(+)/rear(-)
+// ─── Camera angles per service ──────────────────────────────────────
+// ALL cameras at similar distance (~7 units) — only the ANGLE changes
+// The wraps view at [5, 2.8, 5] → [0, 0.7, 0] is the gold standard
 const CAMERA_POSITIONS: Record<string, {
   position: [number, number, number];
   target: [number, number, number];
-  infotag?: { position: [number, number, number]; stats: string[] };
+  stats: string[];
 }> = {
   default: {
-    position: [5, 2.5, 4.5],
-    target: [0, 0.8, 0],
+    // Classic 3/4 front view — hero angle
+    position: [5.5, 2.5, 5],
+    target: [0, 0.6, 0],
+    stats: [],
   },
   "ceramic-coating": {
-    // Front 3/4 view — see the hood and body panels where coating goes
-    position: [3.5, 1.8, 4],
-    target: [0, 0.8, 1],
-    infotag: {
-      position: [1.2, 1.8, 1.5],
-      stats: ["9H Hardness", "5+ Year Durability", "Hydrophobic Surface", "UV Protection"],
-    },
+    // Front 3/4 — show glossy hood and body panels
+    position: [4.5, 2.2, 5.5],
+    target: [0, 0.5, 0.5],
+    stats: ["9H Hardness", "5+ Year Durability", "Hydrophobic", "UV Protection"],
   },
   ppf: {
-    // Front view — shows hood, bumper, fenders where PPF is applied
-    position: [0.5, 2, 6],
-    target: [0, 0.6, 1.5],
-    infotag: {
-      position: [-1.5, 1.6, 2],
-      stats: ["Self-Healing Film", "10yr Warranty", "Rock Chip Defense", "Optically Clear"],
-    },
+    // Front-facing — shows hood, bumper, fenders
+    position: [1, 2, 7],
+    target: [0, 0.5, 0],
+    stats: ["Self-Healing", "10yr Warranty", "Rock Chip Defense", "Optically Clear"],
   },
   "window-tint": {
-    // Side profile — shows all windows clearly
-    position: [6, 1.8, 0],
-    target: [0, 1.0, 0],
-    infotag: {
-      position: [1.5, 2.0, 0],
-      stats: ["99% UV Rejection", "85% Heat Block", "No Signal Loss", "Lifetime Warranty"],
-    },
+    // Side profile — all windows visible
+    position: [7, 2, 1],
+    target: [0, 0.8, 0],
+    stats: ["99% UV Rejection", "85% Heat Block", "No Signal Loss", "Lifetime Warranty"],
   },
   "vehicle-wraps": {
-    // Wide 3/4 view — show full body for color appreciation
+    // Wide dramatic 3/4 — show full color
     position: [5, 2.8, 5],
     target: [0, 0.7, 0],
-    infotag: {
-      position: [-1.8, 1.5, 0.5],
-      stats: ["500+ Colors", "3M Certified", "Fully Reversible", "5-7yr Lifespan"],
-    },
+    stats: ["500+ Colors", "3M Certified", "Fully Reversible", "5-7yr Lifespan"],
   },
   "paint-correction": {
-    // Close on a body panel — hood area to see paint surface
-    position: [2.5, 1.5, 3.5],
-    target: [0.8, 0.9, 1.8],
-    infotag: {
-      position: [0.5, 1.8, 2],
-      stats: ["Multi-Stage Polish", "Swirl Removal", "Gloss Verified", "Paint-Safe"],
-    },
+    // Opposite 3/4 — different angle for variety
+    position: [-4, 2.2, 5.5],
+    target: [0, 0.5, 0],
+    stats: ["Multi-Stage Polish", "Swirl Removal", "Gloss Verified", "Paint-Safe"],
   },
   detailing: {
-    // Rear 3/4 view — shows the full car's finish
-    position: [4, 2.2, -4],
-    target: [0, 0.8, 0],
-    infotag: {
-      position: [1.5, 1.6, -1],
-      stats: ["Hand Wash Only", "Interior + Exterior", "Leather Treatment", "Engine Bay"],
-    },
+    // Rear 3/4 view
+    position: [5, 2.5, -4.5],
+    target: [0, 0.6, 0],
+    stats: ["Hand Wash Only", "Full Interior", "Leather Treatment", "Engine Bay"],
   },
 };
 
@@ -100,12 +84,12 @@ function useMobileCameraPositions(basePositions: typeof CAMERA_POSITIONS) {
 
   return useMemo(() => {
     if (!isMobile) return basePositions;
-    const scaled: typeof CAMERA_POSITIONS = {};
+    const scaled: Record<string, { position: [number, number, number]; target: [number, number, number]; stats: string[] }> = {};
     for (const [key, val] of Object.entries(basePositions)) {
-      // Push camera ~30% further back and slightly higher on mobile
       scaled[key] = {
-        position: [val.position[0] * 1.3, val.position[1] * 1.15, val.position[2] * 1.3],
+        position: [val.position[0] * 1.25, val.position[1] * 1.1, val.position[2] * 1.25],
         target: val.target,
+        stats: val.stats,
       };
     }
     return scaled;
@@ -345,44 +329,16 @@ function CarModel({
   );
 }
 
-// ─── Video-game style Infotag overlay ────────────────────────────────
-function ServiceInfotag({ position, stats, serviceName }: {
-  position: [number, number, number];
-  stats: string[];
-  serviceName: string;
-}) {
-  return (
-    <Html position={position} center distanceFactor={8} style={{ pointerEvents: "none" }}>
-      <div className="relative animate-fadeIn">
-        {/* Connecting line dot */}
-        <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-rpm-red shadow-[0_0_8px_rgba(220,38,38,0.8)]" />
-        {/* Card */}
-        <div className="bg-rpm-dark/90 backdrop-blur-md border border-rpm-red/30 rounded-lg px-3 py-2 shadow-[0_0_20px_rgba(0,0,0,0.5),0_0_10px_rgba(220,38,38,0.1)] min-w-[140px]">
-          <div className="text-[9px] font-bold uppercase tracking-[0.15em] text-rpm-red mb-1.5 border-b border-rpm-red/20 pb-1">
-            {serviceName}
-          </div>
-          {stats.map((stat, i) => (
-            <div key={i} className="flex items-center gap-1.5 py-0.5">
-              <div className="w-1 h-1 rounded-full bg-rpm-red flex-shrink-0" />
-              <span className="text-[10px] text-rpm-white font-medium whitespace-nowrap">{stat}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </Html>
-  );
-}
-
-// ─── Reflective Epoxy Floor ─────────────────────────────────────────
+// ─── Subtle dark floor — no distracting glare ──────────────────────
 function ShopFloor() {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
-      <planeGeometry args={[30, 30]} />
+      <planeGeometry args={[40, 40]} />
       <meshStandardMaterial
-        color="#0c0c0c"
-        roughness={0.15}
-        metalness={0.4}
-        envMapIntensity={0.5}
+        color="#080808"
+        roughness={0.6}
+        metalness={0.1}
+        envMapIntensity={0.15}
       />
     </mesh>
   );
@@ -561,16 +517,6 @@ export default function VehicleVisualizer() {
                     tintLevel={tintLevel}
                   />
 
-                  {/* Video game infotag — shows stats for the active service */}
-                  {cameraTarget.infotag && (
-                    <ServiceInfotag
-                      position={cameraTarget.infotag.position}
-                      stats={cameraTarget.infotag.stats}
-                      serviceName={
-                        CONFIGURATOR_SERVICES.find((s) => s.id === lastActiveService)?.name || ""
-                      }
-                    />
-                  )}
                 </Suspense>
               </Canvas>
 
@@ -583,6 +529,34 @@ export default function VehicleVisualizer() {
               >
                 Click &amp; drag to rotate &bull; Scroll to zoom
               </motion.div>
+
+              {/* ── Service Infotag — compact overlay at bottom-left ── */}
+              <AnimatePresence>
+                {cameraTarget.stats.length > 0 && (
+                  <motion.div
+                    key={lastActiveService}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    transition={{ duration: 0.4, delay: 0.3 }}
+                    className="absolute bottom-4 left-4 z-10 pointer-events-none"
+                  >
+                    <div className="bg-rpm-dark/85 backdrop-blur-md border border-rpm-red/20 rounded-lg px-3 py-2 shadow-[0_4px_20px_rgba(0,0,0,0.4)]">
+                      <div className="text-[8px] font-bold uppercase tracking-[0.15em] text-rpm-red mb-1">
+                        {CONFIGURATOR_SERVICES.find((s) => s.id === lastActiveService)?.name}
+                      </div>
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                        {cameraTarget.stats.map((stat, i) => (
+                          <div key={i} className="flex items-center gap-1">
+                            <div className="w-1 h-1 rounded-full bg-rpm-red" />
+                            <span className="text-[10px] text-rpm-white/80 font-medium whitespace-nowrap">{stat}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Active service badges */}
               {activeServices.size > 0 && (
