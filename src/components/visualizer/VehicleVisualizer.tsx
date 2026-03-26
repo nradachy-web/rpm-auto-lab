@@ -20,53 +20,53 @@ const CONFIGURATOR_SERVICES = [
 ];
 
 // ─── Camera angles per service ──────────────────────────────────────
-// ALL cameras at similar distance (~7 units) — only the ANGLE changes
-// The wraps view at [5, 2.8, 5] → [0, 0.7, 0] is the gold standard
+// Car center is at Y≈1.0 (model is raised). All targets aim at car center.
+// All cameras at ~8 unit distance to ensure the FULL car is always visible.
+const CAR_CENTER_Y = 1.0;
 const CAMERA_POSITIONS: Record<string, {
   position: [number, number, number];
   target: [number, number, number];
   stats: string[];
 }> = {
   default: {
-    // Classic 3/4 front view — hero angle
-    position: [5.5, 2.5, 5],
-    target: [0, 0.6, 0],
+    position: [6, 3, 6],
+    target: [0, CAR_CENTER_Y, 0],
     stats: [],
   },
   "ceramic-coating": {
-    // Front 3/4 — show glossy hood and body panels
-    position: [4.5, 2.2, 5.5],
-    target: [0, 0.5, 0.5],
+    // Front 3/4 — see glossy body panels
+    position: [5, 2.5, 6.5],
+    target: [0, CAR_CENTER_Y, 0],
     stats: ["9H Hardness", "5+ Year Durability", "Hydrophobic", "UV Protection"],
   },
   ppf: {
-    // Front-facing — shows hood, bumper, fenders
-    position: [1, 2, 7],
-    target: [0, 0.5, 0],
+    // Front view — hood, bumper, fenders
+    position: [1.5, 2.5, 8],
+    target: [0, CAR_CENTER_Y - 0.2, 0],
     stats: ["Self-Healing", "10yr Warranty", "Rock Chip Defense", "Optically Clear"],
   },
   "window-tint": {
-    // Side profile — all windows visible
-    position: [7, 2, 1],
-    target: [0, 0.8, 0],
+    // Side profile — windows
+    position: [8, 2.5, 0.5],
+    target: [0, CAR_CENTER_Y, 0],
     stats: ["99% UV Rejection", "85% Heat Block", "No Signal Loss", "Lifetime Warranty"],
   },
   "vehicle-wraps": {
-    // Wide dramatic 3/4 — show full color
-    position: [5, 2.8, 5],
-    target: [0, 0.7, 0],
+    // Wide 3/4 — full color appreciation
+    position: [5.5, 3, 6],
+    target: [0, CAR_CENTER_Y - 0.1, 0],
     stats: ["500+ Colors", "3M Certified", "Fully Reversible", "5-7yr Lifespan"],
   },
   "paint-correction": {
-    // Opposite 3/4 — different angle for variety
-    position: [-4, 2.2, 5.5],
-    target: [0, 0.5, 0],
+    // Opposite 3/4
+    position: [-4.5, 2.5, 6],
+    target: [0, CAR_CENTER_Y, 0],
     stats: ["Multi-Stage Polish", "Swirl Removal", "Gloss Verified", "Paint-Safe"],
   },
   detailing: {
-    // Rear 3/4 view
-    position: [5, 2.5, -4.5],
-    target: [0, 0.6, 0],
+    // Rear 3/4
+    position: [5.5, 2.5, -5],
+    target: [0, CAR_CENTER_Y, 0],
     stats: ["Hand Wash Only", "Full Interior", "Leather Treatment", "Engine Bay"],
   },
 };
@@ -135,9 +135,9 @@ function AnimatedCamera({
   }, [targetPos, targetLookAt, onAnimating]);
 
   useFrame((_, delta) => {
-    // Smooth lerp to target position
-    camera.position.lerp(targetVec.current, 0.03);
-    currentLookAt.current.lerp(targetLookAtVec.current, 0.03);
+    // Faster lerp for snappy camera transitions
+    camera.position.lerp(targetVec.current, 0.06);
+    currentLookAt.current.lerp(targetLookAtVec.current, 0.06);
     camera.lookAt(currentLookAt.current);
 
     // Check if settled (close enough to target)
@@ -473,7 +473,7 @@ export default function VehicleVisualizer() {
               </div>
 
               <Canvas
-                camera={{ position: [5, 2.8, 5.5], fov: 40, near: 0.1, far: 100 }}
+                camera={{ position: [6, 3, 6], fov: 40, near: 0.1, far: 100 }}
                 gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.4 }}
                 style={{ background: "#111111", borderRadius: "1rem" }}
               >
@@ -489,9 +489,9 @@ export default function VehicleVisualizer() {
 
                 <Environment preset="warehouse" />
 
-                {/* Reflective epoxy shop floor */}
+                {/* Dark floor + ground shadow */}
                 <ShopFloor />
-                <ContactShadows position={[0, 0.01, 0]} opacity={0.3} scale={16} blur={2.5} far={6} color="#000000" />
+                <ContactShadows position={[0, 0.02, 0]} opacity={0.25} scale={20} blur={2} far={8} color="#000000" />
 
                 <AnimatedCamera
                   targetPos={cameraTarget.position}
@@ -530,9 +530,9 @@ export default function VehicleVisualizer() {
                 Click &amp; drag to rotate &bull; Scroll to zoom
               </motion.div>
 
-              {/* ── Service Infotag — compact overlay at bottom-left ── */}
+              {/* ── Service Infotag — only shows when camera settles ── */}
               <AnimatePresence>
-                {cameraTarget.stats.length > 0 && (
+                {cameraTarget.stats.length > 0 && !isAnimating && (
                   <motion.div
                     key={lastActiveService}
                     initial={{ opacity: 0, x: -10 }}
