@@ -258,45 +258,63 @@ function CarModel({
       });
     }
 
-    // Ceramic Coating — dramatic wet-look mirror finish
+    // Ceramic Coating — DRAMATIC wet mirror finish, hex lights should pop
     if (activeServices.has("ceramic-coating")) {
       body.forEach((mat) => {
-        mat.roughness = 0.01;
-        mat.metalness = 0.95;
+        mat.roughness = 0.005; // near-perfect mirror
+        mat.metalness = 0.98;
+        // Boost color brightness/saturation for wet look
         const hsl = { h: 0, s: 0, l: 0 };
         mat.color.getHSL(hsl);
-        mat.color.setHSL(hsl.h, Math.min(hsl.s * 1.3, 1), hsl.l * 1.1);
-        mat.envMapIntensity = 2.5;
+        mat.color.setHSL(hsl.h, Math.min(hsl.s * 1.5, 1), Math.min(hsl.l * 1.25, 0.9));
+        mat.envMapIntensity = 4.0; // hex lights reflect like crazy
         mat.needsUpdate = true;
       });
       chrome.forEach((mat) => {
         mat.roughness = 0.0;
+        mat.metalness = 1.0;
+        mat.envMapIntensity = 5;
+        mat.needsUpdate = true;
+      });
+    }
+
+    // Paint Correction — visibly smoother, environment reflections clearer
+    if (activeServices.has("paint-correction")) {
+      body.forEach((mat) => {
+        mat.roughness = Math.min(mat.roughness * 0.3, 0.08);
+        mat.envMapIntensity = 2.0;
+        mat.needsUpdate = true;
+      });
+    }
+
+    // Full Detail — "freshly washed" look, brighter and cleaner
+    if (activeServices.has("detailing")) {
+      body.forEach((mat) => {
+        mat.roughness = Math.max(mat.roughness * 0.5, 0.02);
+        mat.envMapIntensity = 2.5;
+        // Brighten colors slightly — freshly cleaned look
+        const hsl = { h: 0, s: 0, l: 0 };
+        mat.color.getHSL(hsl);
+        mat.color.setHSL(hsl.h, Math.min(hsl.s * 1.2, 1), Math.min(hsl.l * 1.15, 0.85));
+        mat.needsUpdate = true;
+      });
+      chrome.forEach((mat) => {
+        mat.roughness = Math.max(mat.roughness * 0.3, 0);
         mat.envMapIntensity = 3;
         mat.needsUpdate = true;
       });
     }
 
-    // Paint Correction — smooth surface
-    if (activeServices.has("paint-correction")) {
-      body.forEach((mat) => {
-        mat.roughness = Math.min(mat.roughness, 0.1);
-        mat.needsUpdate = true;
-      });
-    }
-
-    // Detailing — subtle quality boost
-    if (activeServices.has("detailing")) {
-      body.forEach((mat) => {
-        mat.roughness = Math.max(mat.roughness - 0.05, 0.01);
-        mat.needsUpdate = true;
-      });
-    }
-
-    // PPF — slight clearcoat boost
+    // PPF — visible protective sheen, slight color shift to show the film
     if (activeServices.has("ppf")) {
       body.forEach((mat) => {
-        mat.metalness = Math.max(mat.metalness, 0.6);
-        mat.roughness = Math.min(mat.roughness, 0.15);
+        mat.metalness = Math.max(mat.metalness, 0.7);
+        mat.roughness = Math.min(mat.roughness, 0.08);
+        mat.envMapIntensity = 2.5;
+        // Slight warm tint to show the film layer
+        const hsl = { h: 0, s: 0, l: 0 };
+        mat.color.getHSL(hsl);
+        mat.color.setHSL(hsl.h, hsl.s * 0.9, Math.min(hsl.l * 1.08, 0.8));
         mat.needsUpdate = true;
       });
     }
@@ -329,18 +347,62 @@ function CarModel({
   );
 }
 
-// ─── Subtle dark floor — no distracting glare ──────────────────────
+// ─── Polyaspartic Epoxy Floor ────────────────────────────────────────
 function ShopFloor() {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
-      <planeGeometry args={[40, 40]} />
+      <planeGeometry args={[30, 30]} />
       <meshStandardMaterial
-        color="#080808"
-        roughness={0.6}
-        metalness={0.1}
-        envMapIntensity={0.15}
+        color="#0e0e10"
+        roughness={0.25}
+        metalness={0.3}
+        envMapIntensity={0.4}
       />
     </mesh>
+  );
+}
+
+// ─── Hexagonal LED Light Panel ──────────────────────────────────────
+function HexLight({ position, size = 0.55 }: { position: [number, number, number]; size?: number }) {
+  return (
+    <mesh position={position} rotation={[-Math.PI / 2, 0, 0]}>
+      <circleGeometry args={[size, 6]} />
+      <meshBasicMaterial color="#ffffff" opacity={0.7} transparent />
+    </mesh>
+  );
+}
+
+// ─── Grid of hex lights on the ceiling ──────────────────────────────
+function HexLightGrid() {
+  const lights: [number, number, number][] = [];
+  const rows = 5;
+  const cols = 7;
+  const spacingX = 1.4;
+  const spacingZ = 1.2;
+  const height = 6;
+
+  for (let r = -Math.floor(rows / 2); r <= Math.floor(rows / 2); r++) {
+    for (let c = -Math.floor(cols / 2); c <= Math.floor(cols / 2); c++) {
+      const offset = r % 2 === 0 ? 0 : spacingX * 0.5;
+      lights.push([c * spacingX + offset, height, r * spacingZ]);
+    }
+  }
+
+  return (
+    <group>
+      {lights.map((pos, i) => (
+        <HexLight key={i} position={pos} />
+      ))}
+      {/* Ceiling plane behind the hex lights */}
+      <mesh position={[0, height + 0.1, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[14, 10]} />
+        <meshBasicMaterial color="#050505" />
+      </mesh>
+      {/* Key overhead light casting down through the hex grid */}
+      <pointLight position={[0, height - 0.5, 0]} intensity={3} color="#f5f5f0" distance={15} decay={2} />
+      <pointLight position={[2, height - 0.5, 2]} intensity={1.5} color="#f0f0ff" distance={12} decay={2} />
+      <pointLight position={[-2, height - 0.5, -1]} intensity={1.5} color="#fff5f0" distance={12} decay={2} />
+    </group>
   );
 }
 
@@ -480,18 +542,21 @@ export default function VehicleVisualizer() {
                 {/* Responsive FOV adjustment */}
                 <ResponsiveCameraConfig />
 
-                {/* Shop/showroom lighting — bright overhead + warm fills */}
-                <ambientLight intensity={0.6} color="#f0f0f0" />
-                <spotLight position={[0, 10, 0]} angle={0.8} penumbra={1} intensity={2.5} color="#ffffff" castShadow />
-                <spotLight position={[6, 6, 6]} angle={0.5} penumbra={0.8} intensity={1.5} color="#fff5e6" />
-                <spotLight position={[-5, 5, -4]} angle={0.5} penumbra={1} intensity={1} color="#e0e8ff" />
-                <spotLight position={[0, 4, -8]} angle={0.4} penumbra={0.6} intensity={1.2} color="#ffffff" />
+                {/* Detailing shop lighting — hex lights provide the key light */}
+                <ambientLight intensity={0.3} color="#f0f0f0" />
+                {/* Fill lights from sides */}
+                <spotLight position={[8, 4, 4]} angle={0.6} penumbra={1} intensity={1} color="#fff8f0" />
+                <spotLight position={[-6, 4, -3]} angle={0.6} penumbra={1} intensity={0.8} color="#f0f0ff" />
 
+                {/* Environment map for car reflections */}
                 <Environment preset="warehouse" />
 
-                {/* Dark floor + ground shadow */}
+                {/* Hex LED light grid on ceiling */}
+                <HexLightGrid />
+
+                {/* Polished epoxy floor */}
                 <ShopFloor />
-                <ContactShadows position={[0, 0.02, 0]} opacity={0.25} scale={20} blur={2} far={8} color="#000000" />
+                <ContactShadows position={[0, 0.02, 0]} opacity={0.2} scale={20} blur={2} far={8} color="#000000" />
 
                 <AnimatedCamera
                   targetPos={cameraTarget.position}
