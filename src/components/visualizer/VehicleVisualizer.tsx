@@ -525,7 +525,7 @@ export default function VehicleVisualizer() {
           {/* 3D Canvas — relative container for mobile overlay */}
           <div className="relative">
             <div
-              className="relative rounded-2xl border border-rpm-gray/50 bg-rpm-dark h-[350px] lg:h-[600px]"
+              className="relative rounded-2xl border border-rpm-gray/50 bg-rpm-dark h-[350px] lg:h-[600px] lens-vignette"
               style={{ touchAction: "none" }}
             >
               <div className="absolute top-0 left-0 w-24 h-1 flex z-10 rounded-br overflow-hidden">
@@ -536,23 +536,25 @@ export default function VehicleVisualizer() {
 
               <Canvas
                 camera={{ position: [6, 3, 6], fov: 40, near: 0.1, far: 100 }}
-                gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 2.2 }}
+                gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 2.8 }}
                 style={{ background: "#080808", borderRadius: "1rem" }}
               >
                 {/* Responsive FOV adjustment */}
                 <ResponsiveCameraConfig />
 
-                {/* Bright ambient — no more dark muddy look */}
-                <ambientLight intensity={0.5} color="#f0f0ff" />
+                {/* Bright ambient — well-lit shop feel */}
+                <ambientLight intensity={0.8} color="#f5f5ff" />
 
                 {/* Key spotlight — strong overhead front */}
-                <spotLight position={[3, 8, 5]} angle={0.6} penumbra={0.8} intensity={5} color="#ffffff" castShadow />
+                <spotLight position={[3, 8, 5]} angle={0.6} penumbra={0.8} intensity={6} color="#ffffff" castShadow />
                 {/* Fill — brighter for less contrast */}
-                <spotLight position={[-5, 6, -2]} angle={0.6} penumbra={1} intensity={3} color="#e8ecff" />
+                <spotLight position={[-5, 6, -2]} angle={0.6} penumbra={1} intensity={4} color="#e8ecff" />
                 {/* Rim light — defines the edges */}
-                <spotLight position={[0, 5, -7]} angle={0.5} penumbra={0.8} intensity={3} color="#fff8f0" />
+                <spotLight position={[0, 5, -7]} angle={0.5} penumbra={0.8} intensity={3.5} color="#fff8f0" />
+                {/* Front fill for face illumination */}
+                <spotLight position={[0, 3, 8]} angle={0.7} penumbra={1} intensity={2} color="#ffffff" />
                 {/* Under-car fill to prevent black underside */}
-                <pointLight position={[0, 0.5, 0]} intensity={0.5} color="#ffffff" distance={8} />
+                <pointLight position={[0, 0.5, 0]} intensity={1} color="#ffffff" distance={8} />
 
                 {/* Custom studio environment — bright panels that reflect on the car */}
                 <Environment resolution={512} background={false}>
