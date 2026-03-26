@@ -536,27 +536,75 @@ export default function VehicleVisualizer() {
 
               <Canvas
                 camera={{ position: [6, 3, 6], fov: 40, near: 0.1, far: 100 }}
-                gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.4 }}
-                style={{ background: "#111111", borderRadius: "1rem" }}
+                gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.8 }}
+                style={{ background: "#080808", borderRadius: "1rem" }}
               >
                 {/* Responsive FOV adjustment */}
                 <ResponsiveCameraConfig />
 
-                {/* Detailing shop lighting — hex lights provide the key light */}
-                <ambientLight intensity={0.3} color="#f0f0f0" />
-                {/* Fill lights from sides */}
-                <spotLight position={[8, 4, 4]} angle={0.6} penumbra={1} intensity={1} color="#fff8f0" />
-                <spotLight position={[-6, 4, -3]} angle={0.6} penumbra={1} intensity={0.8} color="#f0f0ff" />
+                {/* Ambient base */}
+                <ambientLight intensity={0.15} color="#e8e8ff" />
 
-                {/* Environment map for car reflections */}
-                <Environment preset="warehouse" />
+                {/* Key spotlight from above-front — main illumination */}
+                <spotLight position={[3, 7, 5]} angle={0.5} penumbra={1} intensity={4} color="#ffffff" castShadow />
+                {/* Fill from opposite side */}
+                <spotLight position={[-4, 5, -2]} angle={0.6} penumbra={1} intensity={1.5} color="#e0e8ff" />
+                {/* Rim light from behind */}
+                <spotLight position={[0, 4, -6]} angle={0.5} penumbra={0.8} intensity={2} color="#fff5f0" />
 
-                {/* Hex LED light grid on ceiling */}
+                {/* Custom studio environment — bright panels that reflect on the car */}
+                <Environment resolution={512} background={false}>
+                  {/* Main overhead panel — creates the big clean reflection on hood/roof */}
+                  <mesh position={[0, 8, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                    <planeGeometry args={[12, 8]} />
+                    <meshBasicMaterial color="#ffffff" />
+                  </mesh>
+                  {/* Secondary overhead panels — hex-like arrangement */}
+                  <mesh position={[-3, 7.5, -2]} rotation={[Math.PI / 2, 0, 0]}>
+                    <circleGeometry args={[1.5, 6]} />
+                    <meshBasicMaterial color="#f8f8ff" />
+                  </mesh>
+                  <mesh position={[3, 7.5, -2]} rotation={[Math.PI / 2, 0, 0]}>
+                    <circleGeometry args={[1.5, 6]} />
+                    <meshBasicMaterial color="#f8f8ff" />
+                  </mesh>
+                  <mesh position={[0, 7.5, 2]} rotation={[Math.PI / 2, 0, 0]}>
+                    <circleGeometry args={[1.5, 6]} />
+                    <meshBasicMaterial color="#f8f8ff" />
+                  </mesh>
+                  {/* Right wall — soft fill reflection */}
+                  <mesh position={[8, 3, 0]} rotation={[0, -Math.PI / 2, 0]}>
+                    <planeGeometry args={[12, 6]} />
+                    <meshBasicMaterial color="#1a1a1a" />
+                  </mesh>
+                  {/* Left wall — slightly brighter for asymmetric lighting */}
+                  <mesh position={[-8, 3, 0]} rotation={[0, Math.PI / 2, 0]}>
+                    <planeGeometry args={[12, 6]} />
+                    <meshBasicMaterial color="#222222" />
+                  </mesh>
+                  {/* Back wall */}
+                  <mesh position={[0, 3, -8]} rotation={[0, 0, 0]}>
+                    <planeGeometry args={[16, 6]} />
+                    <meshBasicMaterial color="#111111" />
+                  </mesh>
+                  {/* Front wall — darker to not blow out the front */}
+                  <mesh position={[0, 3, 8]} rotation={[0, Math.PI, 0]}>
+                    <planeGeometry args={[16, 6]} />
+                    <meshBasicMaterial color="#0a0a0a" />
+                  </mesh>
+                  {/* Floor reflection — dark */}
+                  <mesh position={[0, -1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                    <planeGeometry args={[16, 16]} />
+                    <meshBasicMaterial color="#080808" />
+                  </mesh>
+                </Environment>
+
+                {/* Physical hex LED light grid — visible in scene */}
                 <HexLightGrid />
 
                 {/* Polished epoxy floor */}
                 <ShopFloor />
-                <ContactShadows position={[0, 0.02, 0]} opacity={0.2} scale={20} blur={2} far={8} color="#000000" />
+                <ContactShadows position={[0, 0.02, 0]} opacity={0.15} scale={20} blur={2.5} far={8} color="#000000" />
 
                 <AnimatedCamera
                   targetPos={cameraTarget.position}
