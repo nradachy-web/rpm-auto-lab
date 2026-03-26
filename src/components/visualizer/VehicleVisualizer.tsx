@@ -536,21 +536,23 @@ export default function VehicleVisualizer() {
 
               <Canvas
                 camera={{ position: [6, 3, 6], fov: 40, near: 0.1, far: 100 }}
-                gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.8 }}
+                gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 2.2 }}
                 style={{ background: "#080808", borderRadius: "1rem" }}
               >
                 {/* Responsive FOV adjustment */}
                 <ResponsiveCameraConfig />
 
-                {/* Ambient base */}
-                <ambientLight intensity={0.15} color="#e8e8ff" />
+                {/* Bright ambient — no more dark muddy look */}
+                <ambientLight intensity={0.5} color="#f0f0ff" />
 
-                {/* Key spotlight from above-front — main illumination */}
-                <spotLight position={[3, 7, 5]} angle={0.5} penumbra={1} intensity={4} color="#ffffff" castShadow />
-                {/* Fill from opposite side */}
-                <spotLight position={[-4, 5, -2]} angle={0.6} penumbra={1} intensity={1.5} color="#e0e8ff" />
-                {/* Rim light from behind */}
-                <spotLight position={[0, 4, -6]} angle={0.5} penumbra={0.8} intensity={2} color="#fff5f0" />
+                {/* Key spotlight — strong overhead front */}
+                <spotLight position={[3, 8, 5]} angle={0.6} penumbra={0.8} intensity={5} color="#ffffff" castShadow />
+                {/* Fill — brighter for less contrast */}
+                <spotLight position={[-5, 6, -2]} angle={0.6} penumbra={1} intensity={3} color="#e8ecff" />
+                {/* Rim light — defines the edges */}
+                <spotLight position={[0, 5, -7]} angle={0.5} penumbra={0.8} intensity={3} color="#fff8f0" />
+                {/* Under-car fill to prevent black underside */}
+                <pointLight position={[0, 0.5, 0]} intensity={0.5} color="#ffffff" distance={8} />
 
                 {/* Custom studio environment — bright panels that reflect on the car */}
                 <Environment resolution={512} background={false}>
@@ -572,30 +574,30 @@ export default function VehicleVisualizer() {
                     <circleGeometry args={[1.5, 6]} />
                     <meshBasicMaterial color="#f8f8ff" />
                   </mesh>
-                  {/* Right wall — soft fill reflection */}
+                  {/* Right wall — medium gray for fill reflection */}
                   <mesh position={[8, 3, 0]} rotation={[0, -Math.PI / 2, 0]}>
-                    <planeGeometry args={[12, 6]} />
-                    <meshBasicMaterial color="#1a1a1a" />
+                    <planeGeometry args={[14, 8]} />
+                    <meshBasicMaterial color="#2a2a2a" />
                   </mesh>
-                  {/* Left wall — slightly brighter for asymmetric lighting */}
+                  {/* Left wall — brighter for asymmetric interest */}
                   <mesh position={[-8, 3, 0]} rotation={[0, Math.PI / 2, 0]}>
-                    <planeGeometry args={[12, 6]} />
-                    <meshBasicMaterial color="#222222" />
+                    <planeGeometry args={[14, 8]} />
+                    <meshBasicMaterial color="#333333" />
                   </mesh>
-                  {/* Back wall */}
-                  <mesh position={[0, 3, -8]} rotation={[0, 0, 0]}>
-                    <planeGeometry args={[16, 6]} />
-                    <meshBasicMaterial color="#111111" />
+                  {/* Back wall — medium */}
+                  <mesh position={[0, 3, -8]}>
+                    <planeGeometry args={[16, 8]} />
+                    <meshBasicMaterial color="#1e1e1e" />
                   </mesh>
-                  {/* Front wall — darker to not blow out the front */}
+                  {/* Front — slightly brighter than before */}
                   <mesh position={[0, 3, 8]} rotation={[0, Math.PI, 0]}>
-                    <planeGeometry args={[16, 6]} />
-                    <meshBasicMaterial color="#0a0a0a" />
+                    <planeGeometry args={[16, 8]} />
+                    <meshBasicMaterial color="#151515" />
                   </mesh>
-                  {/* Floor reflection — dark */}
+                  {/* Floor — dark epoxy reflection */}
                   <mesh position={[0, -1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-                    <planeGeometry args={[16, 16]} />
-                    <meshBasicMaterial color="#080808" />
+                    <planeGeometry args={[20, 20]} />
+                    <meshBasicMaterial color="#0c0c0c" />
                   </mesh>
                 </Environment>
 
@@ -612,16 +614,7 @@ export default function VehicleVisualizer() {
                   onAnimating={handleAnimating}
                 />
 
-                <OrbitControls
-                  ref={orbitRef}
-                  enablePan={false}
-                  enableDamping
-                  dampingFactor={0.05}
-                  minDistance={2}
-                  maxDistance={12}
-                  maxPolarAngle={Math.PI / 2.1}
-                  minPolarAngle={0.2}
-                />
+                {/* No OrbitControls — camera is curated per service, not user-controlled */}
 
                 <Suspense fallback={<Loader />}>
                   <CarModel
@@ -637,10 +630,10 @@ export default function VehicleVisualizer() {
               <motion.div
                 initial={{ opacity: 1 }}
                 animate={{ opacity: 0 }}
-                transition={{ delay: 5, duration: 1.5 }}
+                transition={{ delay: 6, duration: 1.5 }}
                 className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 px-4 py-2 rounded-full bg-rpm-dark/80 backdrop-blur border border-rpm-gray/50 text-rpm-silver text-xs pointer-events-none"
               >
-                Click &amp; drag to rotate &bull; Scroll to zoom
+                Toggle services to see the car transform
               </motion.div>
 
               {/* ── Service Infotag — only shows when camera settles ── */}

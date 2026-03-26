@@ -51,7 +51,7 @@ function ServiceCard({
   return (
     <AnimatedSection delay={0.08 * index} direction="up">
       <Link
-        href={`/services#${service.id}`}
+        href={`/services/${service.id}`}
         className={`block h-full group ${featured ? "md:col-span-2" : ""}`}
       >
         <div
