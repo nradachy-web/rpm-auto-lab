@@ -1,100 +1,34 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { SERVICES } from "@/lib/constants";
+import { SERVICES, BASE_PATH } from "@/lib/constants";
 import AnimatedSection from "@/components/ui/AnimatedSection";
 import SectionHeading from "@/components/ui/SectionHeading";
 import Button from "@/components/ui/Button";
 import BeforeAfterSlider from "@/components/ui/BeforeAfterSlider";
 import { ArrowRight, Eye } from "lucide-react";
 
-// Gallery placeholder data
 const GALLERY_ITEMS = [
-  {
-    id: 1,
-    serviceId: "ceramic-coating",
-    service: "Ceramic Coating",
-    vehicle: "2024 BMW M4 Competition",
-    gradient: "from-rpm-red/30 via-rpm-charcoal to-rpm-dark",
-  },
-  {
-    id: 2,
-    serviceId: "paint-protection-film",
-    service: "Paint Protection Film",
-    vehicle: "2023 Porsche 911 GT3",
-    gradient: "from-rpm-charcoal via-rpm-gray to-rpm-red/20",
-  },
-  {
-    id: 3,
-    serviceId: "window-tint",
-    service: "Window Tint",
-    vehicle: "2024 Mercedes-AMG G63",
-    gradient: "from-rpm-dark via-rpm-red/15 to-rpm-charcoal",
-  },
-  {
-    id: 4,
-    serviceId: "vehicle-wraps",
-    service: "Vehicle Wraps",
-    vehicle: "2023 Tesla Model 3 — Satin Black",
-    gradient: "from-rpm-gray via-rpm-dark to-rpm-red/10",
-  },
-  {
-    id: 5,
-    serviceId: "paint-correction",
-    service: "Paint Correction",
-    vehicle: "2022 Audi RS7 — Stage 2 Polish",
-    gradient: "from-rpm-red/20 via-rpm-dark to-rpm-charcoal",
-  },
-  {
-    id: 6,
-    serviceId: "detailing",
-    service: "Detailing",
-    vehicle: "2024 Range Rover Sport — Full Interior",
-    gradient: "from-rpm-charcoal via-rpm-red/10 to-rpm-dark",
-  },
-  {
-    id: 7,
-    serviceId: "ceramic-coating",
-    service: "Ceramic Coating",
-    vehicle: "2023 Corvette C8 Z06",
-    gradient: "from-rpm-dark via-rpm-charcoal to-rpm-red/25",
-  },
-  {
-    id: 8,
-    serviceId: "paint-protection-film",
-    service: "Paint Protection Film",
-    vehicle: "2024 Ford Mustang Dark Horse",
-    gradient: "from-rpm-red/15 via-rpm-gray to-rpm-dark",
-  },
-  {
-    id: 9,
-    serviceId: "window-tint",
-    service: "Window Tint",
-    vehicle: "2023 Cadillac Escalade — 15% All Around",
-    gradient: "from-rpm-dark via-rpm-charcoal to-rpm-gray",
-  },
-  {
-    id: 10,
-    serviceId: "vehicle-wraps",
-    service: "Vehicle Wraps",
-    vehicle: "2024 Dodge Charger — Matte Military Green",
-    gradient: "from-rpm-charcoal via-rpm-dark to-rpm-red/20",
-  },
-  {
-    id: 11,
-    serviceId: "windshield-protection",
-    service: "Windshield Protection",
-    vehicle: "2023 Lexus LC 500",
-    gradient: "from-rpm-gray via-rpm-red/10 to-rpm-dark",
-  },
-  {
-    id: 12,
-    serviceId: "detailing",
-    service: "Detailing",
-    vehicle: "2024 BMW X5 M — Full Exterior Restoration",
-    gradient: "from-rpm-red/20 via-rpm-charcoal to-rpm-dark",
-  },
+  { id: 1, serviceId: "ceramic-coating", service: "Ceramic Coating", vehicle: "2024 BMW M4 Competition", image: "gallery-1.jpg" },
+  { id: 2, serviceId: "paint-protection-film", service: "Paint Protection Film", vehicle: "2023 Porsche 911 GT3", image: "gallery-8.jpg" },
+  { id: 3, serviceId: "window-tint", service: "Window Tint", vehicle: "2024 Audi RS6 Avant — 5% Limo", image: "gallery-9.jpg" },
+  { id: 4, serviceId: "vehicle-wraps", service: "Vehicle Wraps", vehicle: "2024 Tesla Model 3 — Satin Blue", image: "gallery-10.jpg" },
+  { id: 5, serviceId: "paint-correction", service: "Paint Correction", vehicle: "2023 Mercedes C63 AMG — Stage 2", image: "gallery-11.jpg" },
+  { id: 6, serviceId: "detailing", service: "Detailing", vehicle: "2024 BMW M5 — Full Interior", image: "gallery-12.jpg" },
+  { id: 7, serviceId: "ceramic-coating", service: "Ceramic Coating", vehicle: "2023 Ferrari 488", image: "gallery-13.jpg" },
+  { id: 8, serviceId: "vehicle-wraps", service: "Vehicle Wraps", vehicle: "2024 Dodge Charger — Matte Black", image: "gallery-14.jpg" },
+  { id: 9, serviceId: "paint-protection-film", service: "Paint Protection Film", vehicle: "2023 Lamborghini Huracan", image: "gallery-15.jpg" },
+  { id: 10, serviceId: "ceramic-coating", service: "Ceramic Coating", vehicle: "2024 Ford Mustang GT", image: "gallery-16.jpg" },
+  { id: 11, serviceId: "vehicle-wraps", service: "Vehicle Wraps", vehicle: "2023 Jeep Wrangler — Matte Green", image: "gallery-17.jpg" },
+  { id: 12, serviceId: "ceramic-coating", service: "Ceramic Coating", vehicle: "Water Beading Detail Shot", image: "gallery-18.jpg" },
+  { id: 13, serviceId: "ceramic-coating", service: "Ceramic Coating", vehicle: "2024 BMW M4 — Studio Shot", image: "gallery-7.jpg" },
+  { id: 14, serviceId: "detailing", service: "Detailing", vehicle: "2024 BMW M3 — Full Detail", image: "gallery-4.jpg" },
+  { id: 15, serviceId: "paint-protection-film", service: "Paint Protection Film", vehicle: "2023 Porsche 911 — PPF Install", image: "gallery-5.jpg" },
+  { id: 16, serviceId: "detailing", service: "Detailing", vehicle: "Luxury Interior Detail", image: "gallery-6.jpg" },
+  { id: 17, serviceId: "window-tint", service: "Window Tint", vehicle: "2024 Mercedes AMG — Dark Tint", image: "gallery-2.jpg" },
+  { id: 18, serviceId: "vehicle-wraps", service: "Vehicle Wraps", vehicle: "2023 Audi RS7 — Matte Gray", image: "gallery-3.jpg" },
 ];
 
 const FILTER_TABS = [
@@ -224,12 +158,15 @@ export default function GalleryPage() {
                 transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
               >
                 <div className="group relative aspect-[4/3] rounded-xl overflow-hidden cursor-pointer border border-rpm-gray/20 hover:border-rpm-red/30 transition-all duration-500">
-                  {/* Gradient background placeholder */}
-                  <div
-                    className={`absolute inset-0 bg-gradient-to-br ${item.gradient} transition-transform duration-700 group-hover:scale-110`}
+                  {/* Real image */}
+                  <Image
+                    src={`${BASE_PATH}/images/gallery/${item.image}`}
+                    alt={item.vehicle}
+                    fill
+                    className="object-cover transition-transform duration-700 group-hover:scale-110"
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                   />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(220,38,38,0.08),transparent_70%)]" />
-                  <div className="absolute inset-0 shimmer opacity-40" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-rpm-black/60 via-transparent to-transparent" />
 
                   {/* Service tag */}
                   <div className="absolute top-4 left-4 z-10">
