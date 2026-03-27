@@ -19,6 +19,21 @@ const CONFIGURATOR_SERVICES = [
   { id: "detailing", name: "Full Detail", price: 149, icon: "droplets", description: "Interior & exterior restoration" },
 ];
 
+// ─── Coverage zones for PPF & Ceramic ───────────────────────────────
+const PPF_PACKAGES = [
+  { id: "partial-front", name: "Partial Front", desc: "Hood, bumper, fenders (24\")", price: 799 },
+  { id: "full-front", name: "Full Front", desc: "Hood, full fenders, bumper, mirrors", price: 1499 },
+  { id: "track-pack", name: "Track Package", desc: "Full front + rocker panels + A-pillars", price: 2299 },
+  { id: "full-body", name: "Full Body", desc: "Every painted surface protected", price: 5499 },
+];
+
+const CERAMIC_PACKAGES = [
+  { id: "ceramic-1yr", name: "1-Year Coating", desc: "Entry-level protection, single layer", price: 599 },
+  { id: "ceramic-3yr", name: "3-Year Coating", desc: "Multi-layer, enhanced durability", price: 999 },
+  { id: "ceramic-5yr", name: "5-Year Coating", desc: "Premium multi-layer, max gloss", price: 1499 },
+  { id: "ceramic-lifetime", name: "Lifetime Coating", desc: "Ultimate package + annual inspections", price: 2499 },
+];
+
 // ─── Camera angles per service ──────────────────────────────────────
 // Car center is at Y≈1.0 (model is raised). All targets aim at car center.
 // All cameras at ~8 unit distance to ensure the FULL car is always visible.
@@ -353,10 +368,10 @@ function ShopFloor() {
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
       <planeGeometry args={[30, 30]} />
       <meshStandardMaterial
-        color="#0e0e10"
-        roughness={0.25}
-        metalness={0.3}
-        envMapIntensity={0.4}
+        color="#18181b"
+        roughness={0.2}
+        metalness={0.35}
+        envMapIntensity={0.5}
       />
     </mesh>
   );
@@ -441,6 +456,8 @@ export default function VehicleVisualizer() {
   const [activeServices, setActiveServices] = useState<Set<string>>(new Set());
   const [tintLevel, setTintLevel] = useState(35);
   const [wrapColor, setWrapColor] = useState("#1a1a1a");
+  const [ppfPackage, setPpfPackage] = useState("full-front");
+  const [ceramicPackage, setCeramicPackage] = useState("ceramic-3yr");
   const [lastActiveService, setLastActiveService] = useState<string>("default");
   const [isAnimating, setIsAnimating] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(true);
@@ -450,9 +467,14 @@ export default function VehicleVisualizer() {
   // Responsive camera positions (further back on mobile)
   const cameraPositions = useMobileCameraPositions(CAMERA_POSITIONS);
 
+  // Calculate total with actual package prices
   const estimatedTotal = CONFIGURATOR_SERVICES.filter((s) =>
     activeServices.has(s.id)
-  ).reduce((sum, s) => sum + s.price, 0);
+  ).reduce((sum, s) => {
+    if (s.id === "ppf") return sum + (PPF_PACKAGES.find((p) => p.id === ppfPackage)?.price ?? s.price);
+    if (s.id === "ceramic-coating") return sum + (CERAMIC_PACKAGES.find((p) => p.id === ceramicPackage)?.price ?? s.price);
+    return sum + s.price;
+  }, 0);
 
   // Stable callback ref for animation state
   const handleAnimating = useCallback((animating: boolean) => {
@@ -537,7 +559,7 @@ export default function VehicleVisualizer() {
               <Canvas
                 camera={{ position: [6, 3, 6], fov: 40, near: 0.1, far: 100 }}
                 gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 2.8 }}
-                style={{ background: "#080808", borderRadius: "1rem" }}
+                style={{ background: "#161618", borderRadius: "1rem" }}
               >
                 {/* Responsive FOV adjustment */}
                 <ResponsiveCameraConfig />
@@ -596,10 +618,10 @@ export default function VehicleVisualizer() {
                     <planeGeometry args={[16, 8]} />
                     <meshBasicMaterial color="#151515" />
                   </mesh>
-                  {/* Floor — dark epoxy reflection */}
+                  {/* Floor — lighter epoxy reflection */}
                   <mesh position={[0, -1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
                     <planeGeometry args={[20, 20]} />
-                    <meshBasicMaterial color="#0c0c0c" />
+                    <meshBasicMaterial color="#141416" />
                   </mesh>
                 </Environment>
 
@@ -793,6 +815,56 @@ export default function VehicleVisualizer() {
                     </button>
 
                     <AnimatePresence>
+                      {isActive && service.id === "ceramic-coating" && (
+                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                          <div className="px-4 pb-3 pt-2 space-y-1.5">
+                            <p className="text-[9px] uppercase tracking-widest text-rpm-silver mb-1">Coverage Package</p>
+                            {CERAMIC_PACKAGES.map((pkg) => (
+                              <button
+                                key={pkg.id}
+                                onClick={() => setCeramicPackage(pkg.id)}
+                                className={cn(
+                                  "w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-all text-xs",
+                                  ceramicPackage === pkg.id
+                                    ? "bg-rpm-red/10 border border-rpm-red/30 text-rpm-white"
+                                    : "border border-rpm-gray/20 text-rpm-silver hover:border-rpm-gray/40"
+                                )}
+                              >
+                                <div>
+                                  <div className="font-semibold">{pkg.name}</div>
+                                  <div className="text-[10px] text-rpm-silver/60">{pkg.desc}</div>
+                                </div>
+                                <span className={cn("font-bold text-sm", ceramicPackage === pkg.id ? "text-rpm-red" : "text-rpm-silver")}>${pkg.price.toLocaleString()}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+                      {isActive && service.id === "ppf" && (
+                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                          <div className="px-4 pb-3 pt-2 space-y-1.5">
+                            <p className="text-[9px] uppercase tracking-widest text-rpm-silver mb-1">Coverage Zone</p>
+                            {PPF_PACKAGES.map((pkg) => (
+                              <button
+                                key={pkg.id}
+                                onClick={() => setPpfPackage(pkg.id)}
+                                className={cn(
+                                  "w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-all text-xs",
+                                  ppfPackage === pkg.id
+                                    ? "bg-rpm-red/10 border border-rpm-red/30 text-rpm-white"
+                                    : "border border-rpm-gray/20 text-rpm-silver hover:border-rpm-gray/40"
+                                )}
+                              >
+                                <div>
+                                  <div className="font-semibold">{pkg.name}</div>
+                                  <div className="text-[10px] text-rpm-silver/60">{pkg.desc}</div>
+                                </div>
+                                <span className={cn("font-bold text-sm", ppfPackage === pkg.id ? "text-rpm-red" : "text-rpm-silver")}>${pkg.price.toLocaleString()}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
                       {isActive && service.id === "window-tint" && (
                         <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
                           <div className="px-4 pb-3 pt-1"><TintSlider tintLevel={tintLevel} onTintChange={setTintLevel} /></div>
