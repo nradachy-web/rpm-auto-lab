@@ -284,8 +284,8 @@ export const SERVICE_DETAILS: Record<string, {
 };
 
 export const STATS = [
-  { value: 2500, suffix: "+", label: "Vehicles Protected" },
-  { value: 15, suffix: "+", label: "Years Experience" },
+  { value: 1000, suffix: "+", label: "Vehicles Protected" },
+  { value: 10, suffix: "+", label: "Years Experience" },
   { value: 99, suffix: "%", label: "Customer Satisfaction" },
   { value: 5, suffix: "★", label: "Google Rating" },
 ] as const;

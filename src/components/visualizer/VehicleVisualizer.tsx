@@ -34,6 +34,14 @@ const CERAMIC_PACKAGES = [
   { id: "ceramic-lifetime", name: "Lifetime Coating", desc: "Ultimate package + annual inspections", price: 2499 },
 ];
 
+const TINT_ZONES = [
+  { id: "front-sides", name: "Front Side Windows", desc: "Driver & passenger windows", price: 149 },
+  { id: "rear-sides", name: "Rear Side Windows", desc: "Rear passenger windows", price: 129 },
+  { id: "rear-windshield", name: "Rear Windshield", desc: "Back glass", price: 99 },
+  { id: "windshield", name: "Windshield Strip", desc: "Visor strip / brow", price: 79 },
+  { id: "full-vehicle", name: "Full Vehicle", desc: "All windows — best value", price: 349 },
+];
+
 // ─── Camera angles per service ──────────────────────────────────────
 // Car center is at Y≈1.0 (model is raised). All targets aim at car center.
 // All cameras at ~8 unit distance to ensure the FULL car is always visible.
@@ -458,6 +466,7 @@ export default function VehicleVisualizer() {
   const [wrapColor, setWrapColor] = useState("#1a1a1a");
   const [ppfPackage, setPpfPackage] = useState("full-front");
   const [ceramicPackage, setCeramicPackage] = useState("ceramic-3yr");
+  const [tintZone, setTintZone] = useState("full-vehicle");
   const [lastActiveService, setLastActiveService] = useState<string>("default");
   const [isAnimating, setIsAnimating] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(true);
@@ -473,6 +482,7 @@ export default function VehicleVisualizer() {
   ).reduce((sum, s) => {
     if (s.id === "ppf") return sum + (PPF_PACKAGES.find((p) => p.id === ppfPackage)?.price ?? s.price);
     if (s.id === "ceramic-coating") return sum + (CERAMIC_PACKAGES.find((p) => p.id === ceramicPackage)?.price ?? s.price);
+    if (s.id === "window-tint") return sum + (TINT_ZONES.find((z) => z.id === tintZone)?.price ?? s.price);
     return sum + s.price;
   }, 0);
 
@@ -867,7 +877,32 @@ export default function VehicleVisualizer() {
                       )}
                       {isActive && service.id === "window-tint" && (
                         <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                          <div className="px-4 pb-3 pt-1"><TintSlider tintLevel={tintLevel} onTintChange={setTintLevel} /></div>
+                          <div className="px-4 pb-3 pt-2 space-y-3">
+                            {/* Zone selector */}
+                            <div className="space-y-1.5">
+                              <p className="text-[9px] uppercase tracking-widest text-rpm-silver">Window Zone</p>
+                              {TINT_ZONES.map((zone) => (
+                                <button
+                                  key={zone.id}
+                                  onClick={() => setTintZone(zone.id)}
+                                  className={cn(
+                                    "w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-all text-xs",
+                                    tintZone === zone.id
+                                      ? "bg-rpm-red/10 border border-rpm-red/30 text-rpm-white"
+                                      : "border border-rpm-gray/20 text-rpm-silver hover:border-rpm-gray/40"
+                                  )}
+                                >
+                                  <div>
+                                    <div className="font-semibold">{zone.name}</div>
+                                    <div className="text-[10px] text-rpm-silver/60">{zone.desc}</div>
+                                  </div>
+                                  <span className={cn("font-bold text-sm", tintZone === zone.id ? "text-rpm-red" : "text-rpm-silver")}>${zone.price}</span>
+                                </button>
+                              ))}
+                            </div>
+                            {/* Tint darkness slider */}
+                            <TintSlider tintLevel={tintLevel} onTintChange={setTintLevel} />
+                          </div>
                         </motion.div>
                       )}
                       {isActive && service.id === "vehicle-wraps" && (
