@@ -198,36 +198,72 @@ function ResponsiveCameraConfig() {
   return null;
 }
 
+// ─── Zone types for position-based classification ───────────────────
+type BodyZone = "front" | "side" | "rear" | "top";
+type GlassZone = "windshield" | "front-side" | "rear-side" | "rear-windshield";
+
+interface ZonedMaterial {
+  mat: THREE.MeshStandardMaterial;
+  bodyZone: BodyZone;
+}
+interface ZonedGlass {
+  mat: THREE.MeshStandardMaterial;
+  glassZone: GlassZone;
+}
+
 // ─── Car Model Component ─────────────────────────────────────────────
 function CarModel({
   activeServices,
   wrapColor,
   tintLevel,
+  ppfPackage,
+  tintZone,
 }: {
   activeServices: Set<string>;
   wrapColor: string;
   tintLevel: number;
+  ppfPackage: string;
+  tintZone: string;
 }) {
   const { scene } = useGLTF("/rpm-auto-lab/models/bmw-m4.glb");
   const modelRef = useRef<THREE.Group>(null);
   const clonedScene = useMemo(() => scene.clone(true), [scene]);
 
-  // Categorize materials on first load
+  // Categorize materials by type AND position zone
   const materialCategories = useMemo(() => {
-    const body: THREE.MeshStandardMaterial[] = [];
-    const glass: THREE.MeshStandardMaterial[] = [];
+    const body: ZonedMaterial[] = [];
+    const glass: ZonedGlass[] = [];
     const chrome: THREE.MeshStandardMaterial[] = [];
     const other: THREE.MeshStandardMaterial[] = [];
     const originals = new Map<THREE.MeshStandardMaterial, { color: THREE.Color; roughness: number; metalness: number; opacity: number }>();
 
     clonedScene.traverse((child) => {
       if (child instanceof THREE.Mesh && child.material) {
+        // Compute world-space bounding box for zone classification
+        child.geometry.computeBoundingBox();
+        const bb = child.geometry.boundingBox;
+        const centerZ = bb ? (bb.min.z + bb.max.z) / 2 : 0;
+        const centerY = bb ? (bb.min.y + bb.max.y) / 2 : 0;
+        const centerX = bb ? Math.abs((bb.min.x + bb.max.x) / 2) : 0;
+
+        // Determine body zone by position
+        let bodyZone: BodyZone = "side";
+        if (centerZ > 1.0) bodyZone = "front";
+        else if (centerZ < -1.0) bodyZone = "rear";
+        else if (centerY > 1.2) bodyZone = "top";
+
+        // Determine glass zone
+        let glassZone: GlassZone = "front-side";
+        if (centerZ > 1.5) glassZone = "windshield";
+        else if (centerZ > 0) glassZone = "front-side";
+        else if (centerZ > -1.5) glassZone = "rear-side";
+        else glassZone = "rear-windshield";
+
         const mats = Array.isArray(child.material) ? child.material : [child.material];
         mats.forEach((mat) => {
           if (!(mat instanceof THREE.MeshStandardMaterial) && !(mat instanceof THREE.MeshPhysicalMaterial)) return;
           if (originals.has(mat)) return;
 
-          // Store original values
           originals.set(mat, {
             color: mat.color.clone(),
             roughness: mat.roughness,
@@ -241,13 +277,13 @@ function CarModel({
 
           const isBlendMaterial = combined.includes("699") || combined.includes("775") || combined.includes("718");
           if (mat.transparent || mat.opacity < 1 || isBlendMaterial || combined.includes("glass") || combined.includes("window") || combined.includes("windshield")) {
-            glass.push(mat);
+            glass.push({ mat, glassZone });
           } else if (combined.includes("692") || combined.includes("body") || combined.includes("paint")) {
-            body.push(mat);
+            body.push({ mat, bodyZone });
           } else if (mat.metalness > 0.8 && mat.roughness < 0.2) {
             chrome.push(mat);
           } else if (mat.roughness < 0.3 && !combined.includes("tire") && !combined.includes("rubber")) {
-            body.push(mat);
+            body.push({ mat, bodyZone });
           } else {
             other.push(mat);
           }
@@ -258,7 +294,30 @@ function CarModel({
     return { body, glass, chrome, other, originals };
   }, [clonedScene]);
 
-  // Apply service effects
+  // Helper: check if a body zone should get PPF based on selected package
+  const isPpfZone = useCallback((zone: BodyZone): boolean => {
+    switch (ppfPackage) {
+      case "partial-front": return zone === "front";
+      case "full-front": return zone === "front";
+      case "track-pack": return zone === "front" || zone === "side";
+      case "full-body": return true;
+      default: return false;
+    }
+  }, [ppfPackage]);
+
+  // Helper: check if a glass zone should get tint based on selected zone
+  const isTintZone = useCallback((zone: GlassZone): boolean => {
+    switch (tintZone) {
+      case "front-sides": return zone === "front-side";
+      case "rear-sides": return zone === "rear-side";
+      case "rear-windshield": return zone === "rear-windshield";
+      case "windshield": return zone === "windshield";
+      case "full-vehicle": return true;
+      default: return false;
+    }
+  }, [tintZone]);
+
+  // Apply service effects with zone awareness
   useEffect(() => {
     const { body, glass, chrome, originals } = materialCategories;
 
@@ -273,24 +332,23 @@ function CarModel({
       mat.needsUpdate = true;
     });
 
-    // Vehicle Wraps — change body color
+    // Vehicle Wraps — change body color (all panels)
     if (activeServices.has("vehicle-wraps")) {
-      body.forEach((mat) => {
+      body.forEach(({ mat }) => {
         mat.color.set(wrapColor);
         mat.needsUpdate = true;
       });
     }
 
-    // Ceramic Coating — DRAMATIC wet mirror finish, hex lights should pop
+    // Ceramic Coating — DRAMATIC wet mirror finish
     if (activeServices.has("ceramic-coating")) {
-      body.forEach((mat) => {
-        mat.roughness = 0.005; // near-perfect mirror
+      body.forEach(({ mat }) => {
+        mat.roughness = 0.005;
         mat.metalness = 0.98;
-        // Boost color brightness/saturation for wet look
         const hsl = { h: 0, s: 0, l: 0 };
         mat.color.getHSL(hsl);
         mat.color.setHSL(hsl.h, Math.min(hsl.s * 1.5, 1), Math.min(hsl.l * 1.25, 0.9));
-        mat.envMapIntensity = 4.0; // hex lights reflect like crazy
+        mat.envMapIntensity = 4.0;
         mat.needsUpdate = true;
       });
       chrome.forEach((mat) => {
@@ -301,21 +359,42 @@ function CarModel({
       });
     }
 
-    // Paint Correction — visibly smoother, environment reflections clearer
+    // PPF — highlight ONLY the selected coverage zone with a visible blue-ish protective sheen
+    if (activeServices.has("ppf")) {
+      body.forEach(({ mat, bodyZone }) => {
+        if (isPpfZone(bodyZone)) {
+          // Protected zone — visible sheen + slight cyan tint to show film
+          mat.metalness = Math.max(mat.metalness, 0.75);
+          mat.roughness = Math.min(mat.roughness, 0.06);
+          mat.envMapIntensity = 3.0;
+          // Slight cool/blue tint to indicate the clear film
+          const hsl = { h: 0, s: 0, l: 0 };
+          mat.color.getHSL(hsl);
+          // Shift hue slightly toward blue, boost lightness
+          mat.color.setHSL(
+            hsl.h + 0.02, // tiny blue shift
+            Math.min(hsl.s * 0.85, 1),
+            Math.min(hsl.l * 1.12, 0.85)
+          );
+        }
+        mat.needsUpdate = true;
+      });
+    }
+
+    // Paint Correction
     if (activeServices.has("paint-correction")) {
-      body.forEach((mat) => {
+      body.forEach(({ mat }) => {
         mat.roughness = Math.min(mat.roughness * 0.3, 0.08);
         mat.envMapIntensity = 2.0;
         mat.needsUpdate = true;
       });
     }
 
-    // Full Detail — "freshly washed" look, brighter and cleaner
+    // Full Detail — "freshly washed" look
     if (activeServices.has("detailing")) {
-      body.forEach((mat) => {
+      body.forEach(({ mat }) => {
         mat.roughness = Math.max(mat.roughness * 0.5, 0.02);
         mat.envMapIntensity = 2.5;
-        // Brighten colors slightly — freshly cleaned look
         const hsl = { h: 0, s: 0, l: 0 };
         mat.color.getHSL(hsl);
         mat.color.setHSL(hsl.h, Math.min(hsl.s * 1.2, 1), Math.min(hsl.l * 1.15, 0.85));
@@ -328,36 +407,22 @@ function CarModel({
       });
     }
 
-    // PPF — visible protective sheen, slight color shift to show the film
-    if (activeServices.has("ppf")) {
-      body.forEach((mat) => {
-        mat.metalness = Math.max(mat.metalness, 0.7);
-        mat.roughness = Math.min(mat.roughness, 0.08);
-        mat.envMapIntensity = 2.5;
-        // Slight warm tint to show the film layer
-        const hsl = { h: 0, s: 0, l: 0 };
-        mat.color.getHSL(hsl);
-        mat.color.setHSL(hsl.h, hsl.s * 0.9, Math.min(hsl.l * 1.08, 0.8));
-        mat.needsUpdate = true;
-      });
-    }
-
-    // Window Tint — darken ALL glass progressively
+    // Window Tint — ONLY darken the selected glass zones
     if (activeServices.has("window-tint")) {
-      glass.forEach((mat) => {
-        const t = tintLevel / 100;
-        mat.color.set(new THREE.Color(t * 0.08, t * 0.08, t * 0.08));
-        mat.opacity = 0.99 - t * 0.58;
-        mat.transparent = true;
-        mat.depthWrite = false;
-        mat.side = THREE.DoubleSide;
-        if (mat.map) {
-          mat.map = null;
+      glass.forEach(({ mat, glassZone }) => {
+        if (isTintZone(glassZone)) {
+          const t = tintLevel / 100;
+          mat.color.set(new THREE.Color(t * 0.08, t * 0.08, t * 0.08));
+          mat.opacity = 0.99 - t * 0.58;
+          mat.transparent = true;
+          mat.depthWrite = false;
+          mat.side = THREE.DoubleSide;
+          if (mat.map) mat.map = null;
         }
         mat.needsUpdate = true;
       });
     }
-  }, [activeServices, wrapColor, tintLevel, materialCategories]);
+  }, [activeServices, wrapColor, tintLevel, ppfPackage, tintZone, materialCategories, isPpfZone, isTintZone]);
 
   return (
     <group position={[0, 1.0, 0]}>
@@ -655,6 +720,8 @@ export default function VehicleVisualizer() {
                     activeServices={activeServices}
                     wrapColor={wrapColor}
                     tintLevel={tintLevel}
+                    ppfPackage={ppfPackage}
+                    tintZone={tintZone}
                   />
 
                 </Suspense>
