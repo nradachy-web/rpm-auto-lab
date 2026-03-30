@@ -264,14 +264,27 @@ function CarModel({
           const matName = (mat.name || "").toLowerCase();
           const combined = meshName + " " + matName;
 
-          const isBlendMaterial = combined.includes("699") || combined.includes("775") || combined.includes("718");
-          if (mat.transparent || mat.opacity < 1 || isBlendMaterial || combined.includes("glass") || combined.includes("window") || combined.includes("windshield")) {
+
+          // Use mesh names for smarter classification
+          const isGlass = combined.includes("699") || combined.includes("775") || combined.includes("718") ||
+            combined.includes("glass") || combined.includes("window") || combined.includes("windshield") ||
+            combined.includes("headglass") || mat.transparent || mat.opacity < 1;
+          const isBody = combined.includes("692") || combined.includes("694") || combined.includes("body") ||
+            combined.includes("paint") || combined.includes("bumper");
+          const isInterior = combined.includes("seat") || combined.includes("interior") || combined.includes("steering") ||
+            combined.includes("alcntr") || combined.includes("dashboard");
+          const isWheel = combined.includes("brake") || combined.includes("tire") || combined.includes("rubber") ||
+            combined.includes("wheel") || combined.includes("rim");
+
+          if (isGlass) {
             glass.push({ mat, mesh: child, glassZone });
-          } else if (combined.includes("692") || combined.includes("body") || combined.includes("paint")) {
+          } else if (isBody) {
             body.push({ mat, mesh: child, bodyZone });
+          } else if (isWheel || isInterior) {
+            other.push(mat);
           } else if (mat.metalness > 0.8 && mat.roughness < 0.2) {
             chrome.push(mat);
-          } else if (mat.roughness < 0.3 && !combined.includes("tire") && !combined.includes("rubber")) {
+          } else if (mat.roughness < 0.3) {
             body.push({ mat, mesh: child, bodyZone });
           } else {
             other.push(mat);
@@ -368,19 +381,18 @@ function CarModel({
       mesh.parent?.add(line);
     };
 
-    // Ceramic Coating — apply material effect + outline on selected zone
+    // Ceramic Coating — material effect + outline on ALL body panels
+    // (model body is one mesh — zone is communicated via camera angle + UI)
     if (activeServices.has("ceramic-coating")) {
-      body.forEach(({ mat, mesh, bodyZone }) => {
-        if (isCeramicZone(bodyZone)) {
-          mat.roughness = 0.005;
-          mat.metalness = 0.98;
-          mat.envMapIntensity = 4.0;
-          const hsl = { h: 0, s: 0, l: 0 };
-          mat.color.getHSL(hsl);
-          mat.color.setHSL(hsl.h, Math.min(hsl.s * 1.5, 1), Math.min(hsl.l * 1.25, 0.9));
-          addOutline(mesh); // RED OUTLINE on this panel
-        }
+      body.forEach(({ mat, mesh }) => {
+        mat.roughness = 0.005;
+        mat.metalness = 0.98;
+        mat.envMapIntensity = 4.0;
+        const hsl = { h: 0, s: 0, l: 0 };
+        mat.color.getHSL(hsl);
+        mat.color.setHSL(hsl.h, Math.min(hsl.s * 1.5, 1), Math.min(hsl.l * 1.25, 0.9));
         mat.needsUpdate = true;
+        addOutline(mesh);
       });
       if (ceramicZone === "ceramic-full" || ceramicZone === "ceramic-ultimate") {
         chrome.forEach((mat) => {
@@ -392,16 +404,14 @@ function CarModel({
       }
     }
 
-    // PPF — material effect + outline on protected zone
+    // PPF — material effect + outline on ALL body panels
     if (activeServices.has("ppf")) {
-      body.forEach(({ mat, mesh, bodyZone }) => {
-        if (isPpfZone(bodyZone)) {
-          mat.metalness = Math.max(mat.metalness, 0.75);
-          mat.roughness = Math.min(mat.roughness, 0.06);
-          mat.envMapIntensity = 3.0;
-          addOutline(mesh); // RED OUTLINE on protected panels
-        }
+      body.forEach(({ mat, mesh }) => {
+        mat.metalness = Math.max(mat.metalness, 0.75);
+        mat.roughness = Math.min(mat.roughness, 0.06);
+        mat.envMapIntensity = 3.0;
         mat.needsUpdate = true;
+        addOutline(mesh);
       });
     }
 
@@ -431,20 +441,18 @@ function CarModel({
       });
     }
 
-    // Window Tint — darken selected glass + red outline
+    // Window Tint — darken glass + outline on ALL glass meshes
     if (activeServices.has("window-tint")) {
-      glass.forEach(({ mat, mesh, glassZone }) => {
-        if (isTintZone(glassZone)) {
-          const t = tintLevel / 100;
-          mat.color.set(new THREE.Color(t * 0.08, t * 0.08, t * 0.08));
-          mat.opacity = 0.99 - t * 0.58;
-          mat.transparent = true;
-          mat.depthWrite = false;
-          mat.side = THREE.DoubleSide;
-          if (mat.map) mat.map = null;
-          addOutline(mesh); // RED OUTLINE on selected glass
-        }
+      glass.forEach(({ mat, mesh }) => {
+        const t = tintLevel / 100;
+        mat.color.set(new THREE.Color(t * 0.08, t * 0.08, t * 0.08));
+        mat.opacity = 0.99 - t * 0.58;
+        mat.transparent = true;
+        mat.depthWrite = false;
+        mat.side = THREE.DoubleSide;
+        if (mat.map) mat.map = null;
         mat.needsUpdate = true;
+        addOutline(mesh);
       });
     }
   }, [activeServices, wrapColor, tintLevel, ppfPackage, tintZone, ceramicZone, materialCategories, isPpfZone, isCeramicZone, isTintZone]);
