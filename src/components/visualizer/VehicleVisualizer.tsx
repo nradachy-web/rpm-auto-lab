@@ -27,11 +27,11 @@ const PPF_PACKAGES = [
   { id: "full-body", name: "Full Body", desc: "Every painted surface protected", price: 5499 },
 ];
 
-const CERAMIC_PACKAGES = [
-  { id: "ceramic-1yr", name: "1-Year Coating", desc: "Entry-level protection, single layer", price: 599 },
-  { id: "ceramic-3yr", name: "3-Year Coating", desc: "Multi-layer, enhanced durability", price: 999 },
-  { id: "ceramic-5yr", name: "5-Year Coating", desc: "Premium multi-layer, max gloss", price: 1499 },
-  { id: "ceramic-lifetime", name: "Lifetime Coating", desc: "Ultimate package + annual inspections", price: 2499 },
+const CERAMIC_ZONES = [
+  { id: "ceramic-front", name: "Front End", desc: "Hood, bumper, front fenders", price: 599 },
+  { id: "ceramic-exterior", name: "Full Exterior", desc: "All painted exterior surfaces", price: 999 },
+  { id: "ceramic-full", name: "Full Body + Wheels", desc: "Exterior + wheels + trim", price: 1499 },
+  { id: "ceramic-ultimate", name: "Ultimate Package", desc: "Full body + interior leather + glass", price: 2499 },
 ];
 
 const TINT_ZONES = [
@@ -217,12 +217,14 @@ function CarModel({
   wrapColor,
   tintLevel,
   ppfPackage,
+  ceramicZone,
   tintZone,
 }: {
   activeServices: Set<string>;
   wrapColor: string;
   tintLevel: number;
   ppfPackage: string;
+  ceramicZone: string;
   tintZone: string;
 }) {
   const { scene } = useGLTF("/rpm-auto-lab/models/bmw-m4.glb");
@@ -305,6 +307,17 @@ function CarModel({
     }
   }, [ppfPackage]);
 
+  // Helper: check if a body zone should get Ceramic based on selected zone
+  const isCeramicZone = useCallback((zone: BodyZone): boolean => {
+    switch (ceramicZone) {
+      case "ceramic-front": return zone === "front";
+      case "ceramic-exterior": return true; // all exterior
+      case "ceramic-full": return true;
+      case "ceramic-ultimate": return true;
+      default: return false;
+    }
+  }, [ceramicZone]);
+
   // Helper: check if a glass zone should get tint based on selected zone
   const isTintZone = useCallback((zone: GlassZone): boolean => {
     switch (tintZone) {
@@ -329,6 +342,8 @@ function CarModel({
       mat.opacity = orig.opacity;
       mat.transparent = orig.opacity < 1;
       mat.envMapIntensity = 1;
+      mat.emissive = new THREE.Color(0, 0, 0);
+      mat.emissiveIntensity = 0;
       mat.needsUpdate = true;
     });
 
@@ -340,42 +355,47 @@ function CarModel({
       });
     }
 
-    // Ceramic Coating — DRAMATIC wet mirror finish
+    // Ceramic Coating — zone-aware with RED GLOW on selected areas
     if (activeServices.has("ceramic-coating")) {
-      body.forEach(({ mat }) => {
-        mat.roughness = 0.005;
-        mat.metalness = 0.98;
-        const hsl = { h: 0, s: 0, l: 0 };
-        mat.color.getHSL(hsl);
-        mat.color.setHSL(hsl.h, Math.min(hsl.s * 1.5, 1), Math.min(hsl.l * 1.25, 0.9));
-        mat.envMapIntensity = 4.0;
+      body.forEach(({ mat, bodyZone }) => {
+        if (isCeramicZone(bodyZone)) {
+          // Selected zone: wet mirror finish + red emissive highlight
+          mat.roughness = 0.005;
+          mat.metalness = 0.98;
+          mat.envMapIntensity = 4.0;
+          mat.emissive = new THREE.Color("#dc2626");
+          mat.emissiveIntensity = 0.08; // subtle red glow to show zone
+          const hsl = { h: 0, s: 0, l: 0 };
+          mat.color.getHSL(hsl);
+          mat.color.setHSL(hsl.h, Math.min(hsl.s * 1.5, 1), Math.min(hsl.l * 1.25, 0.9));
+        }
         mat.needsUpdate = true;
       });
-      chrome.forEach((mat) => {
-        mat.roughness = 0.0;
-        mat.metalness = 1.0;
-        mat.envMapIntensity = 5;
-        mat.needsUpdate = true;
-      });
+      if (ceramicZone === "ceramic-full" || ceramicZone === "ceramic-ultimate") {
+        chrome.forEach((mat) => {
+          mat.roughness = 0.0;
+          mat.metalness = 1.0;
+          mat.envMapIntensity = 5;
+          mat.emissive = new THREE.Color("#dc2626");
+          mat.emissiveIntensity = 0.05;
+          mat.needsUpdate = true;
+        });
+      }
     }
 
-    // PPF — highlight ONLY the selected coverage zone with a visible blue-ish protective sheen
+    // PPF — zone-aware with RED GLOW on protected areas
     if (activeServices.has("ppf")) {
       body.forEach(({ mat, bodyZone }) => {
         if (isPpfZone(bodyZone)) {
-          // Protected zone — visible sheen + slight cyan tint to show film
+          // Protected zone: sheen + red emissive to clearly show coverage
           mat.metalness = Math.max(mat.metalness, 0.75);
           mat.roughness = Math.min(mat.roughness, 0.06);
           mat.envMapIntensity = 3.0;
-          // Slight cool/blue tint to indicate the clear film
+          mat.emissive = new THREE.Color("#dc2626");
+          mat.emissiveIntensity = 0.1; // slightly brighter red for PPF zones
           const hsl = { h: 0, s: 0, l: 0 };
           mat.color.getHSL(hsl);
-          // Shift hue slightly toward blue, boost lightness
-          mat.color.setHSL(
-            hsl.h + 0.02, // tiny blue shift
-            Math.min(hsl.s * 0.85, 1),
-            Math.min(hsl.l * 1.12, 0.85)
-          );
+          mat.color.setHSL(hsl.h, hsl.s * 0.9, Math.min(hsl.l * 1.08, 0.8));
         }
         mat.needsUpdate = true;
       });
@@ -407,7 +427,7 @@ function CarModel({
       });
     }
 
-    // Window Tint — ONLY darken the selected glass zones
+    // Window Tint — ONLY darken selected glass + red emissive highlight
     if (activeServices.has("window-tint")) {
       glass.forEach(({ mat, glassZone }) => {
         if (isTintZone(glassZone)) {
@@ -417,12 +437,14 @@ function CarModel({
           mat.transparent = true;
           mat.depthWrite = false;
           mat.side = THREE.DoubleSide;
+          mat.emissive = new THREE.Color("#dc2626");
+          mat.emissiveIntensity = 0.06; // subtle red to show which glass is selected
           if (mat.map) mat.map = null;
         }
         mat.needsUpdate = true;
       });
     }
-  }, [activeServices, wrapColor, tintLevel, ppfPackage, tintZone, materialCategories, isPpfZone, isTintZone]);
+  }, [activeServices, wrapColor, tintLevel, ppfPackage, tintZone, ceramicZone, materialCategories, isPpfZone, isCeramicZone, isTintZone]);
 
   return (
     <group position={[0, 1.0, 0]}>
@@ -530,7 +552,7 @@ export default function VehicleVisualizer() {
   const [tintLevel, setTintLevel] = useState(35);
   const [wrapColor, setWrapColor] = useState("#1a1a1a");
   const [ppfPackage, setPpfPackage] = useState("full-front");
-  const [ceramicPackage, setCeramicPackage] = useState("ceramic-3yr");
+  const [ceramicZone, setCeramicZone] = useState("ceramic-exterior");
   const [tintZone, setTintZone] = useState("full-vehicle");
   const [lastActiveService, setLastActiveService] = useState<string>("default");
   const [isAnimating, setIsAnimating] = useState(false);
@@ -546,7 +568,7 @@ export default function VehicleVisualizer() {
     activeServices.has(s.id)
   ).reduce((sum, s) => {
     if (s.id === "ppf") return sum + (PPF_PACKAGES.find((p) => p.id === ppfPackage)?.price ?? s.price);
-    if (s.id === "ceramic-coating") return sum + (CERAMIC_PACKAGES.find((p) => p.id === ceramicPackage)?.price ?? s.price);
+    if (s.id === "ceramic-coating") return sum + (CERAMIC_ZONES.find((p) => p.id === ceramicZone)?.price ?? s.price);
     if (s.id === "window-tint") return sum + (TINT_ZONES.find((z) => z.id === tintZone)?.price ?? s.price);
     return sum + s.price;
   }, 0);
@@ -721,6 +743,7 @@ export default function VehicleVisualizer() {
                     wrapColor={wrapColor}
                     tintLevel={tintLevel}
                     ppfPackage={ppfPackage}
+                    ceramicZone={ceramicZone}
                     tintZone={tintZone}
                   />
 
@@ -895,23 +918,23 @@ export default function VehicleVisualizer() {
                       {isActive && service.id === "ceramic-coating" && (
                         <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
                           <div className="px-4 pb-3 pt-2 space-y-1.5">
-                            <p className="text-[9px] uppercase tracking-widest text-rpm-silver mb-1">Coverage Package</p>
-                            {CERAMIC_PACKAGES.map((pkg) => (
+                            <p className="text-[9px] uppercase tracking-widest text-rpm-silver mb-1">Coverage Zone</p>
+                            {CERAMIC_ZONES.map((zone) => (
                               <button
-                                key={pkg.id}
-                                onClick={() => setCeramicPackage(pkg.id)}
+                                key={zone.id}
+                                onClick={() => setCeramicZone(zone.id)}
                                 className={cn(
                                   "w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-all text-xs",
-                                  ceramicPackage === pkg.id
+                                  ceramicZone === zone.id
                                     ? "bg-rpm-red/10 border border-rpm-red/30 text-rpm-white"
                                     : "border border-rpm-gray/20 text-rpm-silver hover:border-rpm-gray/40"
                                 )}
                               >
                                 <div>
-                                  <div className="font-semibold">{pkg.name}</div>
-                                  <div className="text-[10px] text-rpm-silver/60">{pkg.desc}</div>
+                                  <div className="font-semibold">{zone.name}</div>
+                                  <div className="text-[10px] text-rpm-silver/60">{zone.desc}</div>
                                 </div>
-                                <span className={cn("font-bold text-sm", ceramicPackage === pkg.id ? "text-rpm-red" : "text-rpm-silver")}>${pkg.price.toLocaleString()}</span>
+                                <span className={cn("font-bold text-sm", ceramicZone === zone.id ? "text-rpm-red" : "text-rpm-silver")}>${zone.price.toLocaleString()}</span>
                               </button>
                             ))}
                           </div>
