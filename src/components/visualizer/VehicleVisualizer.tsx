@@ -182,10 +182,12 @@ type GlassZone = "windshield" | "front-side" | "rear-side" | "rear-windshield";
 
 interface ZonedMaterial {
   mat: THREE.MeshStandardMaterial;
+  mesh: THREE.Mesh;
   bodyZone: BodyZone;
 }
 interface ZonedGlass {
   mat: THREE.MeshStandardMaterial;
+  mesh: THREE.Mesh;
   glassZone: GlassZone;
 }
 
@@ -226,17 +228,17 @@ function CarModel({
         const centerY = bb ? (bb.min.y + bb.max.y) / 2 : 0;
         const centerX = bb ? Math.abs((bb.min.x + bb.max.x) / 2) : 0;
 
-        // Determine body zone by position
+        // Determine body zone by position (model Z range: -3.28 to +3.32)
         let bodyZone: BodyZone = "side";
-        if (centerZ > 1.0) bodyZone = "front";
-        else if (centerZ < -1.0) bodyZone = "rear";
-        else if (centerY > 1.2) bodyZone = "top";
+        if (centerZ > 1.8) bodyZone = "front";      // hood, bumper, front fenders
+        else if (centerZ < -1.8) bodyZone = "rear";  // trunk, rear bumper
+        else if (centerY > 1.5) bodyZone = "top";    // roof, pillars
 
         // Determine glass zone
         let glassZone: GlassZone = "front-side";
         if (centerZ > 1.5) glassZone = "windshield";
         else if (centerZ > 0) glassZone = "front-side";
-        else if (centerZ > -1.5) glassZone = "rear-side";
+        else if (centerZ > -1.0) glassZone = "rear-side";
         else glassZone = "rear-windshield";
 
         const mats = Array.isArray(child.material) ? child.material : [child.material];
@@ -257,13 +259,13 @@ function CarModel({
 
           const isBlendMaterial = combined.includes("699") || combined.includes("775") || combined.includes("718");
           if (mat.transparent || mat.opacity < 1 || isBlendMaterial || combined.includes("glass") || combined.includes("window") || combined.includes("windshield")) {
-            glass.push({ mat, glassZone });
+            glass.push({ mat, mesh: child, glassZone });
           } else if (combined.includes("692") || combined.includes("body") || combined.includes("paint")) {
-            body.push({ mat, bodyZone });
+            body.push({ mat, mesh: child, bodyZone });
           } else if (mat.metalness > 0.8 && mat.roughness < 0.2) {
             chrome.push(mat);
           } else if (mat.roughness < 0.3 && !combined.includes("tire") && !combined.includes("rubber")) {
-            body.push({ mat, bodyZone });
+            body.push({ mat, mesh: child, bodyZone });
           } else {
             other.push(mat);
           }
@@ -312,7 +314,7 @@ function CarModel({
   useEffect(() => {
     const { body, glass, chrome, originals } = materialCategories;
 
-    // Reset all to originals first
+    // Reset all materials to originals
     originals.forEach((orig, mat) => {
       mat.color.copy(orig.color);
       mat.roughness = orig.roughness;
@@ -325,6 +327,13 @@ function CarModel({
       mat.needsUpdate = true;
     });
 
+    // Remove all previous outline geometry
+    const toRemove: THREE.Object3D[] = [];
+    clonedScene.traverse((child) => {
+      if (child.userData.isZoneOutline) toRemove.push(child);
+    });
+    toRemove.forEach((obj) => obj.parent?.remove(obj));
+
     // Vehicle Wraps — change body color (all panels)
     if (activeServices.has("vehicle-wraps")) {
       body.forEach(({ mat }) => {
@@ -333,19 +342,36 @@ function CarModel({
       });
     }
 
-    // Ceramic Coating — zone-aware with RED GLOW on selected areas
+    // ── Red wireframe OUTLINE on selected zones ──
+    const outlineMaterial = new THREE.LineBasicMaterial({
+      color: 0xdc2626,
+      transparent: true,
+      opacity: 0.7,
+      depthTest: true,
+    });
+
+    // Helper to add red edge outline to a mesh
+    const addOutline = (mesh: THREE.Mesh) => {
+      const edges = new THREE.EdgesGeometry(mesh.geometry, 30);
+      const line = new THREE.LineSegments(edges, outlineMaterial);
+      line.userData.isZoneOutline = true;
+      line.position.copy(mesh.position);
+      line.rotation.copy(mesh.rotation);
+      line.scale.copy(mesh.scale);
+      mesh.parent?.add(line);
+    };
+
+    // Ceramic Coating — apply material effect + outline on selected zone
     if (activeServices.has("ceramic-coating")) {
-      body.forEach(({ mat, bodyZone }) => {
+      body.forEach(({ mat, mesh, bodyZone }) => {
         if (isCeramicZone(bodyZone)) {
-          // Selected zone: wet mirror finish + red emissive highlight
           mat.roughness = 0.005;
           mat.metalness = 0.98;
           mat.envMapIntensity = 4.0;
-          mat.emissive = new THREE.Color("#dc2626");
-          mat.emissiveIntensity = 0.35; // visible red highlight on selected zone
           const hsl = { h: 0, s: 0, l: 0 };
           mat.color.getHSL(hsl);
           mat.color.setHSL(hsl.h, Math.min(hsl.s * 1.5, 1), Math.min(hsl.l * 1.25, 0.9));
+          addOutline(mesh); // RED OUTLINE on this panel
         }
         mat.needsUpdate = true;
       });
@@ -354,26 +380,19 @@ function CarModel({
           mat.roughness = 0.0;
           mat.metalness = 1.0;
           mat.envMapIntensity = 5;
-          mat.emissive = new THREE.Color("#dc2626");
-          mat.emissiveIntensity = 0.3;
           mat.needsUpdate = true;
         });
       }
     }
 
-    // PPF — zone-aware with RED GLOW on protected areas
+    // PPF — material effect + outline on protected zone
     if (activeServices.has("ppf")) {
-      body.forEach(({ mat, bodyZone }) => {
+      body.forEach(({ mat, mesh, bodyZone }) => {
         if (isPpfZone(bodyZone)) {
-          // Protected zone: sheen + red emissive to clearly show coverage
           mat.metalness = Math.max(mat.metalness, 0.75);
           mat.roughness = Math.min(mat.roughness, 0.06);
           mat.envMapIntensity = 3.0;
-          mat.emissive = new THREE.Color("#dc2626");
-          mat.emissiveIntensity = 0.4; // bright red highlight for PPF zones
-          const hsl = { h: 0, s: 0, l: 0 };
-          mat.color.getHSL(hsl);
-          mat.color.setHSL(hsl.h, hsl.s * 0.9, Math.min(hsl.l * 1.08, 0.8));
+          addOutline(mesh); // RED OUTLINE on protected panels
         }
         mat.needsUpdate = true;
       });
@@ -405,9 +424,9 @@ function CarModel({
       });
     }
 
-    // Window Tint — ONLY darken selected glass + red emissive highlight
+    // Window Tint — darken selected glass + red outline
     if (activeServices.has("window-tint")) {
-      glass.forEach(({ mat, glassZone }) => {
+      glass.forEach(({ mat, mesh, glassZone }) => {
         if (isTintZone(glassZone)) {
           const t = tintLevel / 100;
           mat.color.set(new THREE.Color(t * 0.08, t * 0.08, t * 0.08));
@@ -415,9 +434,8 @@ function CarModel({
           mat.transparent = true;
           mat.depthWrite = false;
           mat.side = THREE.DoubleSide;
-          mat.emissive = new THREE.Color("#dc2626");
-          mat.emissiveIntensity = 0.3; // visible red on selected glass
           if (mat.map) mat.map = null;
+          addOutline(mesh); // RED OUTLINE on selected glass
         }
         mat.needsUpdate = true;
       });
