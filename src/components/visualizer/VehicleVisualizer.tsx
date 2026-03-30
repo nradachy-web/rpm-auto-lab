@@ -229,10 +229,14 @@ function CarModel({
         const centerX = bb ? Math.abs((bb.min.x + bb.max.x) / 2) : 0;
 
         // Determine body zone by position (model Z range: -3.28 to +3.32)
+        // Use the MAX Z extent of the mesh, not just center — a mesh that
+        // reaches into the front (maxZ > 1.5) counts as "front"
+        const maxZ = bb ? bb.max.z : 0;
+        const minZ = bb ? bb.min.z : 0;
         let bodyZone: BodyZone = "side";
-        if (centerZ > 1.8) bodyZone = "front";      // hood, bumper, front fenders
-        else if (centerZ < -1.8) bodyZone = "rear";  // trunk, rear bumper
-        else if (centerY > 1.5) bodyZone = "top";    // roof, pillars
+        if (centerZ > 0.8 || maxZ > 2.0) bodyZone = "front";
+        else if (centerZ < -0.8 || minZ < -2.0) bodyZone = "rear";
+        else if (centerY > 1.5) bodyZone = "top";
 
         // Determine glass zone
         let glassZone: GlassZone = "front-side";
@@ -244,15 +248,18 @@ function CarModel({
         const mats = Array.isArray(child.material) ? child.material : [child.material];
         mats.forEach((mat) => {
           if (!(mat instanceof THREE.MeshStandardMaterial) && !(mat instanceof THREE.MeshPhysicalMaterial)) return;
-          if (originals.has(mat)) return;
 
-          originals.set(mat, {
-            color: mat.color.clone(),
-            roughness: mat.roughness,
-            metalness: mat.metalness,
-            opacity: mat.opacity,
-          });
+          // Store original material values ONCE (for reset)
+          if (!originals.has(mat)) {
+            originals.set(mat, {
+              color: mat.color.clone(),
+              roughness: mat.roughness,
+              metalness: mat.metalness,
+              opacity: mat.opacity,
+            });
+          }
 
+          // But classify EVERY mesh instance (not just unique materials)
           const meshName = (child.name || "").toLowerCase();
           const matName = (mat.name || "").toLowerCase();
           const combined = meshName + " " + matName;
@@ -344,9 +351,9 @@ function CarModel({
 
     // ── Red wireframe OUTLINE on selected zones ──
     const outlineMaterial = new THREE.LineBasicMaterial({
-      color: 0xdc2626,
+      color: 0xff4422, // bright orange-red
       transparent: true,
-      opacity: 0.7,
+      opacity: 0.85,
       depthTest: true,
     });
 
