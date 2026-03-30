@@ -42,56 +42,34 @@ const TINT_ZONES = [
   { id: "full-vehicle", name: "Full Vehicle", desc: "All windows — best value", price: 349 },
 ];
 
-// ─── Camera angles per service ──────────────────────────────────────
-// Car center is at Y≈1.0 (model is raised). All targets aim at car center.
-// All cameras at ~8 unit distance to ensure the FULL car is always visible.
+// ─── Camera angles — per service AND per sub-zone ───────────────────
 const CAR_CENTER_Y = 1.0;
-const CAMERA_POSITIONS: Record<string, {
-  position: [number, number, number];
-  target: [number, number, number];
-  stats: string[];
-}> = {
-  default: {
-    position: [6, 3, 6],
-    target: [0, CAR_CENTER_Y, 0],
-    stats: [],
-  },
-  "ceramic-coating": {
-    // Front 3/4 — see glossy body panels
-    position: [5, 2.5, 6.5],
-    target: [0, CAR_CENTER_Y, 0],
-    stats: ["9H Hardness", "5+ Year Durability", "Hydrophobic", "UV Protection"],
-  },
-  ppf: {
-    // Front view — hood, bumper, fenders
-    position: [1.5, 2.5, 8],
-    target: [0, CAR_CENTER_Y - 0.2, 0],
-    stats: ["Self-Healing", "10yr Warranty", "Rock Chip Defense", "Optically Clear"],
-  },
-  "window-tint": {
-    // Side profile — windows
-    position: [8, 2.5, 0.5],
-    target: [0, CAR_CENTER_Y, 0],
-    stats: ["99% UV Rejection", "85% Heat Block", "No Signal Loss", "Lifetime Warranty"],
-  },
-  "vehicle-wraps": {
-    // Wide 3/4 — full color appreciation
-    position: [5.5, 3, 6],
-    target: [0, CAR_CENTER_Y - 0.1, 0],
-    stats: ["500+ Colors", "3M Certified", "Fully Reversible", "5-7yr Lifespan"],
-  },
-  "paint-correction": {
-    // Opposite 3/4
-    position: [-4.5, 2.5, 6],
-    target: [0, CAR_CENTER_Y, 0],
-    stats: ["Multi-Stage Polish", "Swirl Removal", "Gloss Verified", "Paint-Safe"],
-  },
-  detailing: {
-    // Rear 3/4
-    position: [5.5, 2.5, -5],
-    target: [0, CAR_CENTER_Y, 0],
-    stats: ["Hand Wash Only", "Full Interior", "Leather Treatment", "Engine Bay"],
-  },
+type CamPos = { position: [number, number, number]; target: [number, number, number]; stats: string[] };
+const CAMERA_POSITIONS: Record<string, CamPos> = {
+  default: { position: [6, 3, 6], target: [0, CAR_CENTER_Y, 0], stats: [] },
+  // Service-level defaults
+  "ceramic-coating": { position: [5, 2.5, 6.5], target: [0, CAR_CENTER_Y, 0], stats: ["9H Hardness", "5+ Year Durability", "Hydrophobic", "UV Protection"] },
+  ppf: { position: [1.5, 2.5, 8], target: [0, CAR_CENTER_Y - 0.2, 0], stats: ["Self-Healing", "10yr Warranty", "Rock Chip Defense", "Optically Clear"] },
+  "window-tint": { position: [8, 2.5, 0.5], target: [0, CAR_CENTER_Y, 0], stats: ["99% UV Rejection", "85% Heat Block", "No Signal Loss", "Lifetime Warranty"] },
+  "vehicle-wraps": { position: [5.5, 3, 6], target: [0, CAR_CENTER_Y - 0.1, 0], stats: ["500+ Colors", "3M Certified", "Fully Reversible", "5-7yr Lifespan"] },
+  "paint-correction": { position: [-4.5, 2.5, 6], target: [0, CAR_CENTER_Y, 0], stats: ["Multi-Stage Polish", "Swirl Removal", "Gloss Verified", "Paint-Safe"] },
+  detailing: { position: [5.5, 2.5, -5], target: [0, CAR_CENTER_Y, 0], stats: ["Hand Wash Only", "Full Interior", "Leather Treatment", "Engine Bay"] },
+  // PPF sub-zones
+  "ppf:partial-front": { position: [1, 2.5, 8], target: [0, CAR_CENTER_Y - 0.2, 1], stats: ["Self-Healing", "10yr Warranty", "Rock Chip Defense", "Optically Clear"] },
+  "ppf:full-front": { position: [3, 2.5, 7], target: [0, CAR_CENTER_Y, 0.5], stats: ["Self-Healing", "10yr Warranty", "Rock Chip Defense", "Optically Clear"] },
+  "ppf:track-pack": { position: [7, 2, 3], target: [0, CAR_CENTER_Y - 0.2, 0], stats: ["Self-Healing", "10yr Warranty", "Rock Chip Defense", "Optically Clear"] },
+  "ppf:full-body": { position: [5.5, 3, 6], target: [0, CAR_CENTER_Y, 0], stats: ["Self-Healing", "10yr Warranty", "Rock Chip Defense", "Optically Clear"] },
+  // Ceramic sub-zones
+  "ceramic:ceramic-front": { position: [1.5, 2.5, 7.5], target: [0, CAR_CENTER_Y - 0.1, 1], stats: ["9H Hardness", "5+ Year Durability", "Hydrophobic", "UV Protection"] },
+  "ceramic:ceramic-exterior": { position: [5, 2.5, 6.5], target: [0, CAR_CENTER_Y, 0], stats: ["9H Hardness", "5+ Year Durability", "Hydrophobic", "UV Protection"] },
+  "ceramic:ceramic-full": { position: [5.5, 3, 6], target: [0, CAR_CENTER_Y, 0], stats: ["9H Hardness", "5+ Year Durability", "Hydrophobic", "UV Protection"] },
+  "ceramic:ceramic-ultimate": { position: [6, 3, 5], target: [0, CAR_CENTER_Y, 0], stats: ["9H Hardness", "5+ Year Durability", "Hydrophobic", "UV Protection"] },
+  // Tint sub-zones
+  "tint:front-sides": { position: [7, 2.2, 2], target: [0, CAR_CENTER_Y + 0.2, 0.5], stats: ["99% UV Rejection", "85% Heat Block", "No Signal Loss", "Lifetime Warranty"] },
+  "tint:rear-sides": { position: [7, 2.2, -2], target: [0, CAR_CENTER_Y + 0.2, -0.5], stats: ["99% UV Rejection", "85% Heat Block", "No Signal Loss", "Lifetime Warranty"] },
+  "tint:rear-windshield": { position: [3, 2.5, -7], target: [0, CAR_CENTER_Y, -1], stats: ["99% UV Rejection", "85% Heat Block", "No Signal Loss", "Lifetime Warranty"] },
+  "tint:windshield": { position: [1, 2.5, 8], target: [0, CAR_CENTER_Y + 0.3, 1], stats: ["99% UV Rejection", "85% Heat Block", "No Signal Loss", "Lifetime Warranty"] },
+  "tint:full-vehicle": { position: [7, 2.5, 1], target: [0, CAR_CENTER_Y, 0], stats: ["99% UV Rejection", "85% Heat Block", "No Signal Loss", "Lifetime Warranty"] },
 };
 
 // Scale camera positions further back on mobile
@@ -364,7 +342,7 @@ function CarModel({
           mat.metalness = 0.98;
           mat.envMapIntensity = 4.0;
           mat.emissive = new THREE.Color("#dc2626");
-          mat.emissiveIntensity = 0.08; // subtle red glow to show zone
+          mat.emissiveIntensity = 0.35; // visible red highlight on selected zone
           const hsl = { h: 0, s: 0, l: 0 };
           mat.color.getHSL(hsl);
           mat.color.setHSL(hsl.h, Math.min(hsl.s * 1.5, 1), Math.min(hsl.l * 1.25, 0.9));
@@ -377,7 +355,7 @@ function CarModel({
           mat.metalness = 1.0;
           mat.envMapIntensity = 5;
           mat.emissive = new THREE.Color("#dc2626");
-          mat.emissiveIntensity = 0.05;
+          mat.emissiveIntensity = 0.3;
           mat.needsUpdate = true;
         });
       }
@@ -392,7 +370,7 @@ function CarModel({
           mat.roughness = Math.min(mat.roughness, 0.06);
           mat.envMapIntensity = 3.0;
           mat.emissive = new THREE.Color("#dc2626");
-          mat.emissiveIntensity = 0.1; // slightly brighter red for PPF zones
+          mat.emissiveIntensity = 0.4; // bright red highlight for PPF zones
           const hsl = { h: 0, s: 0, l: 0 };
           mat.color.getHSL(hsl);
           mat.color.setHSL(hsl.h, hsl.s * 0.9, Math.min(hsl.l * 1.08, 0.8));
@@ -438,7 +416,7 @@ function CarModel({
           mat.depthWrite = false;
           mat.side = THREE.DoubleSide;
           mat.emissive = new THREE.Color("#dc2626");
-          mat.emissiveIntensity = 0.06; // subtle red to show which glass is selected
+          mat.emissiveIntensity = 0.3; // visible red on selected glass
           if (mat.map) mat.map = null;
         }
         mat.needsUpdate = true;
@@ -601,7 +579,14 @@ export default function VehicleVisualizer() {
     });
   }, []);
 
-  const cameraTarget = cameraPositions[lastActiveService] || cameraPositions.default;
+  // Camera targets sub-zones when available
+  const cameraKey = useMemo(() => {
+    if (lastActiveService === "ppf" && activeServices.has("ppf")) return `ppf:${ppfPackage}`;
+    if (lastActiveService === "ceramic-coating" && activeServices.has("ceramic-coating")) return `ceramic:${ceramicZone}`;
+    if (lastActiveService === "window-tint" && activeServices.has("window-tint")) return `tint:${tintZone}`;
+    return lastActiveService;
+  }, [lastActiveService, activeServices, ppfPackage, ceramicZone, tintZone]);
+  const cameraTarget = cameraPositions[cameraKey] || cameraPositions[lastActiveService] || cameraPositions.default;
 
   return (
     <section id="configurator" className="relative py-10 lg:py-20 overflow-hidden">
