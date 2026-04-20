@@ -184,20 +184,27 @@ export function applyDetail(bodies: ClassifiedMesh[], chromes: ClassifiedMesh[])
 }
 
 // ── Window Tint: darkens selected glass zones. ─────────────────────────
-// tintLevel is VLT % (5 = limo, 70 = light). Lower = darker.
+// tintLevel is VLT % (5 = limo, 70 = light). Lower VLT → darker glass.
+// Darkness = 1 - VLT/100, so VLT=5 → 0.95 dark, VLT=70 → 0.3 dark.
+// Glass is always transparent; darker tint = higher opacity of the dark
+// tint color. Previous version had the opacity formula inverted, so darker
+// tints looked MORE see-through than lighter ones.
 export function applyTint(
   glass: ClassifiedMesh[],
   tintLevel: number,
   zoneFilter: (zone: GlassZone) => boolean
 ): void {
-  const t = 1 - tintLevel / 100;
+  const darkness = Math.max(0, Math.min(1, 1 - tintLevel / 100));
   glass.forEach(({ material, glassZone }) => {
     if (!zoneFilter(glassZone)) return;
     const mat = material;
     const phys = mat as THREE.MeshPhysicalMaterial;
-    mat.color.setRGB(0.05 + (1 - t) * 0.1, 0.05 + (1 - t) * 0.1, 0.07 + (1 - t) * 0.15);
+    // Base tint color: very dark, barely warmer at higher darkness
+    const base = 0.02;
+    mat.color.setRGB(base + 0.04 * (1 - darkness), base + 0.04 * (1 - darkness), base + 0.06 * (1 - darkness));
     mat.transparent = true;
-    mat.opacity = Math.max(0.98 - t * 0.58, 0.3);
+    // Darker tint = MORE opaque. 0.35 at clear, 0.96 at limo.
+    mat.opacity = 0.35 + darkness * 0.61;
     mat.side = THREE.DoubleSide;
     mat.depthWrite = false;
     mat.roughness = 0.04;
@@ -207,16 +214,35 @@ export function applyTint(
       phys.clearcoat = 1;
       phys.clearcoatRoughness = 0.02;
       phys.ior = 1.52;
-      phys.transmission = Math.max(0.25 - t * 0.2, 0.02);
+      // Lighter tint lets more light through (higher transmission)
+      phys.transmission = (1 - darkness) * 0.35;
     }
     mat.needsUpdate = true;
   });
 }
 
-// ── Zone outline (visible red wireframe on selected meshes) ────────────
-// This is what the user actually sees as "this zone is covered". Applied
-// as a separate Object3D child of the mesh, tagged for cleanup.
+// ── Zone overlay (glowing colored panel highlight) ─────────────────────
+// Shows which meshes belong to the selected zone. Previous version used
+// 1px EdgesGeometry lines which were invisible at normal camera distance.
+// This version renders two layers per covered mesh:
+//   1. A translucent emissive panel clone (the "glow")
+//   2. An EdgesGeometry line on top for a crisp border
+// Both tagged via userData so removeAllOutlines cleans them up.
 const OUTLINE_USERDATA_KEY = "isZoneOutline";
+// Tag for overlays whose geometry we OWN (can safely dispose).
+// Panel overlays reuse the original mesh's BufferGeometry and must NEVER
+// dispose it — the real car uses the same geometry.
+const OUTLINE_OWNS_GEOMETRY = "isZoneOutlineOwnsGeometry";
+
+function disposeOverlay(obj: THREE.Object3D): void {
+  const o = obj as THREE.Mesh | THREE.LineSegments;
+  if (o.geometry && o.userData[OUTLINE_OWNS_GEOMETRY]) {
+    o.geometry.dispose();
+  }
+  // Don't dispose materials here — they're shared across overlays in a
+  // single addZoneOutline call and THREE handles the multi-ref case
+  // gracefully on scene removal.
+}
 
 export function addZoneOutline(
   scene: THREE.Object3D,
@@ -224,26 +250,78 @@ export function addZoneOutline(
   filter: (m: ClassifiedMesh) => boolean,
   color: number = 0xff3b22
 ): void {
-  const outlineMaterial = new THREE.LineBasicMaterial({
+  // Glow panel: translucent emissive clone laid slightly above the surface.
+  const panelMat = new THREE.MeshStandardMaterial({
+    color,
+    emissive: color,
+    emissiveIntensity: 0.85,
+    transparent: true,
+    opacity: 0.28,
+    roughness: 0.6,
+    metalness: 0,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+  });
+  // Edge line on top gives crisp border even on dark cars.
+  const edgeMat = new THREE.LineBasicMaterial({
     color,
     transparent: true,
-    opacity: 0.9,
-    depthTest: false, // always visible, even behind other parts
+    opacity: 0.95,
+    depthTest: false,
   });
+
   const seen = new Set<THREE.Mesh>();
+  let overlayCount = 0;
+
   entries.forEach((entry) => {
     if (!filter(entry)) return;
     if (seen.has(entry.mesh)) return;
     seen.add(entry.mesh);
-    const edges = new THREE.EdgesGeometry(entry.mesh.geometry, 25);
-    const line = new THREE.LineSegments(edges, outlineMaterial);
+
+    // Panel glow — shares the mesh's geometry (no duplicate buffers) but
+    // uses the translucent emissive material. Geometry NOT owned → no dispose.
+    const panel = new THREE.Mesh(entry.mesh.geometry, panelMat);
+    panel.userData[OUTLINE_USERDATA_KEY] = true;
+    panel.renderOrder = 998;
+    panel.position.copy(entry.mesh.position);
+    panel.rotation.copy(entry.mesh.rotation);
+    panel.scale.copy(entry.mesh.scale);
+    entry.mesh.parent?.add(panel);
+
+    // Crisp edges on top — shared edge material, EdgesGeometry is OWNED.
+    const edges = new THREE.EdgesGeometry(entry.mesh.geometry, 30);
+    const line = new THREE.LineSegments(edges, edgeMat);
     line.userData[OUTLINE_USERDATA_KEY] = true;
+    line.userData[OUTLINE_OWNS_GEOMETRY] = true;
     line.renderOrder = 999;
     line.position.copy(entry.mesh.position);
     line.rotation.copy(entry.mesh.rotation);
     line.scale.copy(entry.mesh.scale);
     entry.mesh.parent?.add(line);
+
+    overlayCount++;
   });
+
+  // If NOTHING matched the filter (e.g. single-mesh body, zone-filter is
+  // partial), fall back to whole-body overlay so the user still sees that
+  // the service is active — the camera angle + infotag convey the zone.
+  if (overlayCount === 0 && entries.length > 0) {
+    entries.forEach((entry) => {
+      if (seen.has(entry.mesh)) return;
+      seen.add(entry.mesh);
+      const panel = new THREE.Mesh(entry.mesh.geometry, panelMat);
+      panel.userData[OUTLINE_USERDATA_KEY] = true;
+      panel.renderOrder = 998;
+      panel.position.copy(entry.mesh.position);
+      panel.rotation.copy(entry.mesh.rotation);
+      panel.scale.copy(entry.mesh.scale);
+      entry.mesh.parent?.add(panel);
+    });
+  }
+
   void scene; // scene-level cleanup handled by removeAllOutlines
 }
 
@@ -254,10 +332,12 @@ export function removeAllOutlines(scene: THREE.Object3D): void {
   });
   toRemove.forEach((obj) => {
     obj.parent?.remove(obj);
-    // Dispose geometry to prevent leaks
-    if ((obj as THREE.LineSegments).geometry) (obj as THREE.LineSegments).geometry.dispose();
+    disposeOverlay(obj);
   });
 }
+
+// Backwards-compat alias in case other files still import the old name.
+export const addZoneOverlay = addZoneOutline;
 
 // ── Master state + orchestrator ────────────────────────────────────────
 export interface EffectState {
