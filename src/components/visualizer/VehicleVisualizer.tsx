@@ -2,14 +2,20 @@
 
 import { useState, useEffect, useRef, useCallback, Suspense, useMemo } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Environment, ContactShadows, Center, useGLTF, Html } from "@react-three/drei";
+import { OrbitControls, useGLTF, Html } from "@react-three/drei";
 import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
 import * as THREE from "three";
+import { cn } from "@/lib/utils";
 import ColorPicker from "./ColorPicker";
 import TintSlider from "./TintSlider";
+import VehiclePicker from "./VehiclePicker";
+import { Studio } from "./Studio";
+import { VehicleCar } from "./VehicleCar";
+import { VEHICLES, getVehicleById } from "./vehicles";
+import type { EffectState } from "./materialEffects";
+import type { FinishType } from "./types";
 
-// ─── Services ────────────────────────────────────────────────────────
+// ─── Service catalog ─────────────────────────────────────────────────
 const CONFIGURATOR_SERVICES = [
   { id: "ceramic-coating", name: "Ceramic Coating", price: 599, icon: "shield", description: "Mirror-like gloss & hydrophobic protection" },
   { id: "ppf", name: "Paint Protection Film", price: 799, icon: "layers", description: "Self-healing invisible armor" },
@@ -17,22 +23,21 @@ const CONFIGURATOR_SERVICES = [
   { id: "vehicle-wraps", name: "Vehicle Wraps", price: 2499, icon: "paintbrush", description: "Full color transformation" },
   { id: "paint-correction", name: "Paint Correction", price: 399, icon: "sparkles", description: "Swirl & scratch elimination" },
   { id: "detailing", name: "Full Detail", price: 149, icon: "droplets", description: "Interior & exterior restoration" },
-];
+] as const;
 
-// ─── Coverage zones for PPF & Ceramic ───────────────────────────────
 const PPF_PACKAGES = [
   { id: "partial-front", name: "Partial Front", desc: "Hood, bumper, fenders (24\")", price: 799 },
   { id: "full-front", name: "Full Front", desc: "Hood, full fenders, bumper, mirrors", price: 1499 },
   { id: "track-pack", name: "Track Package", desc: "Full front + rocker panels + A-pillars", price: 2299 },
   { id: "full-body", name: "Full Body", desc: "Every painted surface protected", price: 5499 },
-];
+] as const;
 
 const CERAMIC_ZONES = [
   { id: "ceramic-front", name: "Front End", desc: "Hood, bumper, front fenders", price: 599 },
   { id: "ceramic-exterior", name: "Full Exterior", desc: "All painted exterior surfaces", price: 999 },
   { id: "ceramic-full", name: "Full Body + Wheels", desc: "Exterior + wheels + trim", price: 1499 },
   { id: "ceramic-ultimate", name: "Ultimate Package", desc: "Full body + interior leather + glass", price: 2499 },
-];
+] as const;
 
 const TINT_ZONES = [
   { id: "front-sides", name: "Front Side Windows", desc: "Driver & passenger windows", price: 149 },
@@ -40,64 +45,9 @@ const TINT_ZONES = [
   { id: "rear-windshield", name: "Rear Windshield", desc: "Back glass", price: 99 },
   { id: "windshield", name: "Windshield Strip", desc: "Visor strip / brow", price: 79 },
   { id: "full-vehicle", name: "Full Vehicle", desc: "All windows — best value", price: 349 },
-];
+] as const;
 
-// ─── Camera angles — per service AND per sub-zone ───────────────────
-const CAR_CENTER_Y = 1.0;
-type CamPos = { position: [number, number, number]; target: [number, number, number]; stats: string[] };
-const CAMERA_POSITIONS: Record<string, CamPos> = {
-  default: { position: [6, 3, 6], target: [0, CAR_CENTER_Y, 0], stats: [] },
-  // Service-level defaults
-  "ceramic-coating": { position: [5, 2.5, 6.5], target: [0, CAR_CENTER_Y, 0], stats: ["9H Hardness", "5+ Year Durability", "Hydrophobic", "UV Protection"] },
-  ppf: { position: [1.5, 2.5, 8], target: [0, CAR_CENTER_Y - 0.2, 0], stats: ["Self-Healing", "10yr Warranty", "Rock Chip Defense", "Optically Clear"] },
-  "window-tint": { position: [8, 2.5, 0.5], target: [0, CAR_CENTER_Y, 0], stats: ["99% UV Rejection", "85% Heat Block", "No Signal Loss", "Lifetime Warranty"] },
-  "vehicle-wraps": { position: [5.5, 3, 6], target: [0, CAR_CENTER_Y - 0.1, 0], stats: ["500+ Colors", "3M Certified", "Fully Reversible", "5-7yr Lifespan"] },
-  "paint-correction": { position: [-4.5, 2.5, 6], target: [0, CAR_CENTER_Y, 0], stats: ["Multi-Stage Polish", "Swirl Removal", "Gloss Verified", "Paint-Safe"] },
-  detailing: { position: [5.5, 2.5, -5], target: [0, CAR_CENTER_Y, 0], stats: ["Hand Wash Only", "Full Interior", "Leather Treatment", "Engine Bay"] },
-  // PPF sub-zones
-  "ppf:partial-front": { position: [1, 2.5, 8], target: [0, CAR_CENTER_Y - 0.2, 1], stats: ["Self-Healing", "10yr Warranty", "Rock Chip Defense", "Optically Clear"] },
-  "ppf:full-front": { position: [3, 2.5, 7], target: [0, CAR_CENTER_Y, 0.5], stats: ["Self-Healing", "10yr Warranty", "Rock Chip Defense", "Optically Clear"] },
-  "ppf:track-pack": { position: [7, 2, 3], target: [0, CAR_CENTER_Y - 0.2, 0], stats: ["Self-Healing", "10yr Warranty", "Rock Chip Defense", "Optically Clear"] },
-  "ppf:full-body": { position: [5.5, 3, 6], target: [0, CAR_CENTER_Y, 0], stats: ["Self-Healing", "10yr Warranty", "Rock Chip Defense", "Optically Clear"] },
-  // Ceramic sub-zones
-  "ceramic:ceramic-front": { position: [1.5, 2.5, 7.5], target: [0, CAR_CENTER_Y - 0.1, 1], stats: ["9H Hardness", "5+ Year Durability", "Hydrophobic", "UV Protection"] },
-  "ceramic:ceramic-exterior": { position: [5, 2.5, 6.5], target: [0, CAR_CENTER_Y, 0], stats: ["9H Hardness", "5+ Year Durability", "Hydrophobic", "UV Protection"] },
-  "ceramic:ceramic-full": { position: [5.5, 3, 6], target: [0, CAR_CENTER_Y, 0], stats: ["9H Hardness", "5+ Year Durability", "Hydrophobic", "UV Protection"] },
-  "ceramic:ceramic-ultimate": { position: [6, 3, 5], target: [0, CAR_CENTER_Y, 0], stats: ["9H Hardness", "5+ Year Durability", "Hydrophobic", "UV Protection"] },
-  // Tint sub-zones
-  "tint:front-sides": { position: [7, 2.2, 2], target: [0, CAR_CENTER_Y + 0.2, 0.5], stats: ["99% UV Rejection", "85% Heat Block", "No Signal Loss", "Lifetime Warranty"] },
-  "tint:rear-sides": { position: [7, 2.2, -2], target: [0, CAR_CENTER_Y + 0.2, -0.5], stats: ["99% UV Rejection", "85% Heat Block", "No Signal Loss", "Lifetime Warranty"] },
-  "tint:rear-windshield": { position: [3, 2.5, -7], target: [0, CAR_CENTER_Y, -1], stats: ["99% UV Rejection", "85% Heat Block", "No Signal Loss", "Lifetime Warranty"] },
-  "tint:windshield": { position: [1, 2.5, 8], target: [0, CAR_CENTER_Y + 0.3, 1], stats: ["99% UV Rejection", "85% Heat Block", "No Signal Loss", "Lifetime Warranty"] },
-  "tint:full-vehicle": { position: [7, 2.5, 1], target: [0, CAR_CENTER_Y, 0], stats: ["99% UV Rejection", "85% Heat Block", "No Signal Loss", "Lifetime Warranty"] },
-};
-
-// Scale camera positions further back on mobile
-function useMobileCameraPositions(basePositions: typeof CAMERA_POSITIONS) {
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 1024);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
-
-  return useMemo(() => {
-    if (!isMobile) return basePositions;
-    const scaled: Record<string, { position: [number, number, number]; target: [number, number, number]; stats: string[] }> = {};
-    for (const [key, val] of Object.entries(basePositions)) {
-      scaled[key] = {
-        position: [val.position[0] * 1.25, val.position[1] * 1.1, val.position[2] * 1.25],
-        target: val.target,
-        stats: val.stats,
-      };
-    }
-    return scaled;
-  }, [isMobile, basePositions]);
-}
-
-// ─── Hook for mobile detection ──────────────────────────────────────
+// ─── Mobile detection hook ──────────────────────────────────────────
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -109,62 +59,73 @@ function useIsMobile() {
   return isMobile;
 }
 
-// ─── Animated Camera ─────────────────────────────────────────────────
-function AnimatedCamera({
-  targetPos,
-  targetLookAt,
-  onAnimating,
+// ─── Imperative camera animator — sets position on azimuth change, then
+// hands control back to OrbitControls for user dragging. No per-frame fight.
+function CameraDirector({
+  distance,
+  height,
+  target,
+  azimuth,
+  onSettled,
 }: {
-  targetPos: [number, number, number];
-  targetLookAt: [number, number, number];
-  onAnimating?: (animating: boolean) => void;
+  distance: number;
+  height: number;
+  target: [number, number, number];
+  azimuth: number;
+  onSettled?: (settled: boolean) => void;
 }) {
-  const { camera } = useThree();
-  const currentLookAt = useRef(new THREE.Vector3(0, 0.5, 0));
-  const targetVec = useRef(new THREE.Vector3(...targetPos));
-  const targetLookAtVec = useRef(new THREE.Vector3(...targetLookAt));
-  const settleTimer = useRef(0);
-  const wasAnimating = useRef(false);
+  const { camera, controls } = useThree() as unknown as {
+    camera: THREE.PerspectiveCamera;
+    controls: { target: THREE.Vector3; update: () => void } | undefined;
+  };
+  const animFrom = useRef(new THREE.Vector3());
+  const animTo = useRef(new THREE.Vector3());
+  const animLookFrom = useRef(new THREE.Vector3());
+  const animLookTo = useRef(new THREE.Vector3(...target));
+  const animT = useRef(1); // 1 = settled, <1 = in progress
+  const animDuration = useRef(0.9);
 
-  // Update targets when props change
+  // When any camera input changes, start a fresh animation
   useEffect(() => {
-    targetVec.current.set(...targetPos);
-    targetLookAtVec.current.set(...targetLookAt);
-    settleTimer.current = 0;
-    wasAnimating.current = true;
-    onAnimating?.(true);
-  }, [targetPos, targetLookAt, onAnimating]);
+    animFrom.current.copy(camera.position);
+    animLookFrom.current.copy(controls?.target ?? new THREE.Vector3(...target));
+    const x = Math.sin(azimuth) * distance;
+    const z = Math.cos(azimuth) * distance;
+    animTo.current.set(x, height, z);
+    animLookTo.current.set(...target);
+    animT.current = 0;
+    onSettled?.(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [distance, height, azimuth, target[0], target[1], target[2]]);
 
   useFrame((_, delta) => {
-    // Faster lerp for snappy camera transitions
-    camera.position.lerp(targetVec.current, 0.06);
-    currentLookAt.current.lerp(targetLookAtVec.current, 0.06);
-    camera.lookAt(currentLookAt.current);
-
-    // Check if settled (close enough to target)
-    if (wasAnimating.current) {
-      const dist = camera.position.distanceTo(targetVec.current);
-      if (dist < 0.05) {
-        settleTimer.current += delta;
-        if (settleTimer.current > 0.5) {
-          wasAnimating.current = false;
-          onAnimating?.(false);
-        }
-      }
+    if (animT.current >= 1) return;
+    animT.current = Math.min(1, animT.current + delta / animDuration.current);
+    const t = easeInOutCubic(animT.current);
+    camera.position.lerpVectors(animFrom.current, animTo.current, t);
+    if (controls?.target) {
+      controls.target.lerpVectors(animLookFrom.current, animLookTo.current, t);
+      controls.update();
+    } else {
+      const look = new THREE.Vector3().lerpVectors(animLookFrom.current, animLookTo.current, t);
+      camera.lookAt(look);
     }
+    if (animT.current >= 1) onSettled?.(true);
   });
 
   return null;
 }
 
-// ─── Responsive Camera Config ────────────────────────────────────────
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
 function ResponsiveCameraConfig() {
   const { camera } = useThree();
-
   useEffect(() => {
     const updateFov = () => {
       if (camera instanceof THREE.PerspectiveCamera) {
-        camera.fov = window.innerWidth < 1024 ? 48 : 40;
+        camera.fov = window.innerWidth < 1024 ? 45 : 36;
         camera.updateProjectionMatrix();
       }
     };
@@ -172,377 +133,25 @@ function ResponsiveCameraConfig() {
     window.addEventListener("resize", updateFov);
     return () => window.removeEventListener("resize", updateFov);
   }, [camera]);
-
   return null;
 }
 
-// ─── Zone types for position-based classification ───────────────────
-type BodyZone = "front" | "side" | "rear" | "top";
-type GlassZone = "windshield" | "front-side" | "rear-side" | "rear-windshield";
-
-interface ZonedMaterial {
-  mat: THREE.MeshStandardMaterial;
-  mesh: THREE.Mesh;
-  bodyZone: BodyZone;
-}
-interface ZonedGlass {
-  mat: THREE.MeshStandardMaterial;
-  mesh: THREE.Mesh;
-  glassZone: GlassZone;
-}
-
-// ─── Car Model Component ─────────────────────────────────────────────
-function CarModel({
-  activeServices,
-  wrapColor,
-  tintLevel,
-  ppfPackage,
-  ceramicZone,
-  tintZone,
-}: {
-  activeServices: Set<string>;
-  wrapColor: string;
-  tintLevel: number;
-  ppfPackage: string;
-  ceramicZone: string;
-  tintZone: string;
-}) {
-  const { scene } = useGLTF("/rpm-auto-lab/models/bmw-m4.glb");
-  const modelRef = useRef<THREE.Group>(null);
-  const clonedScene = useMemo(() => scene.clone(true), [scene]);
-
-  // Categorize materials by type AND position zone
-  const materialCategories = useMemo(() => {
-    const body: ZonedMaterial[] = [];
-    const glass: ZonedGlass[] = [];
-    const chrome: THREE.MeshStandardMaterial[] = [];
-    const other: THREE.MeshStandardMaterial[] = [];
-    const originals = new Map<THREE.MeshStandardMaterial, { color: THREE.Color; roughness: number; metalness: number; opacity: number }>();
-
-    clonedScene.traverse((child) => {
-      if (child instanceof THREE.Mesh && child.material) {
-        // Compute world-space bounding box for zone classification
-        child.geometry.computeBoundingBox();
-        const bb = child.geometry.boundingBox;
-        const centerZ = bb ? (bb.min.z + bb.max.z) / 2 : 0;
-        const centerY = bb ? (bb.min.y + bb.max.y) / 2 : 0;
-        const centerX = bb ? Math.abs((bb.min.x + bb.max.x) / 2) : 0;
-
-        // Determine body zone by position (model Z range: -3.28 to +3.32)
-        // Use the MAX Z extent of the mesh, not just center — a mesh that
-        // reaches into the front (maxZ > 1.5) counts as "front"
-        const maxZ = bb ? bb.max.z : 0;
-        const minZ = bb ? bb.min.z : 0;
-        let bodyZone: BodyZone = "side";
-        if (centerZ > 0.8 || maxZ > 2.0) bodyZone = "front";
-        else if (centerZ < -0.8 || minZ < -2.0) bodyZone = "rear";
-        else if (centerY > 1.5) bodyZone = "top";
-
-        // Determine glass zone
-        let glassZone: GlassZone = "front-side";
-        if (centerZ > 1.5) glassZone = "windshield";
-        else if (centerZ > 0) glassZone = "front-side";
-        else if (centerZ > -1.0) glassZone = "rear-side";
-        else glassZone = "rear-windshield";
-
-        const mats = Array.isArray(child.material) ? child.material : [child.material];
-        mats.forEach((mat) => {
-          if (!(mat instanceof THREE.MeshStandardMaterial) && !(mat instanceof THREE.MeshPhysicalMaterial)) return;
-
-          // Store original material values ONCE (for reset)
-          if (!originals.has(mat)) {
-            originals.set(mat, {
-              color: mat.color.clone(),
-              roughness: mat.roughness,
-              metalness: mat.metalness,
-              opacity: mat.opacity,
-            });
-          }
-
-          // But classify EVERY mesh instance (not just unique materials)
-          const meshName = (child.name || "").toLowerCase();
-          const matName = (mat.name || "").toLowerCase();
-          const combined = meshName + " " + matName;
-
-
-          // Use mesh names for smarter classification
-          const isGlass = combined.includes("699") || combined.includes("775") || combined.includes("718") ||
-            combined.includes("glass") || combined.includes("window") || combined.includes("windshield") ||
-            combined.includes("headglass") || mat.transparent || mat.opacity < 1;
-          const isBody = combined.includes("692") || combined.includes("694") || combined.includes("body") ||
-            combined.includes("paint") || combined.includes("bumper");
-          const isInterior = combined.includes("seat") || combined.includes("interior") || combined.includes("steering") ||
-            combined.includes("alcntr") || combined.includes("dashboard");
-          const isWheel = combined.includes("brake") || combined.includes("tire") || combined.includes("rubber") ||
-            combined.includes("wheel") || combined.includes("rim");
-
-          if (isGlass) {
-            glass.push({ mat, mesh: child, glassZone });
-          } else if (isBody) {
-            body.push({ mat, mesh: child, bodyZone });
-          } else if (isWheel || isInterior) {
-            other.push(mat);
-          } else if (mat.metalness > 0.8 && mat.roughness < 0.2) {
-            chrome.push(mat);
-          } else if (mat.roughness < 0.3) {
-            body.push({ mat, mesh: child, bodyZone });
-          } else {
-            other.push(mat);
-          }
-        });
-      }
-    });
-
-    return { body, glass, chrome, other, originals };
-  }, [clonedScene]);
-
-  // Helper: check if a body zone should get PPF based on selected package
-  const isPpfZone = useCallback((zone: BodyZone): boolean => {
-    switch (ppfPackage) {
-      case "partial-front": return zone === "front";
-      case "full-front": return zone === "front";
-      case "track-pack": return zone === "front" || zone === "side";
-      case "full-body": return true;
-      default: return false;
-    }
-  }, [ppfPackage]);
-
-  // Helper: check if a body zone should get Ceramic based on selected zone
-  const isCeramicZone = useCallback((zone: BodyZone): boolean => {
-    switch (ceramicZone) {
-      case "ceramic-front": return zone === "front";
-      case "ceramic-exterior": return true; // all exterior
-      case "ceramic-full": return true;
-      case "ceramic-ultimate": return true;
-      default: return false;
-    }
-  }, [ceramicZone]);
-
-  // Helper: check if a glass zone should get tint based on selected zone
-  const isTintZone = useCallback((zone: GlassZone): boolean => {
-    switch (tintZone) {
-      case "front-sides": return zone === "front-side";
-      case "rear-sides": return zone === "rear-side";
-      case "rear-windshield": return zone === "rear-windshield";
-      case "windshield": return zone === "windshield";
-      case "full-vehicle": return true;
-      default: return false;
-    }
-  }, [tintZone]);
-
-  // Apply service effects with zone awareness
-  useEffect(() => {
-    const { body, glass, chrome, originals } = materialCategories;
-
-    // Reset all materials to originals
-    originals.forEach((orig, mat) => {
-      mat.color.copy(orig.color);
-      mat.roughness = orig.roughness;
-      mat.metalness = orig.metalness;
-      mat.opacity = orig.opacity;
-      mat.transparent = orig.opacity < 1;
-      mat.envMapIntensity = 1;
-      mat.emissive = new THREE.Color(0, 0, 0);
-      mat.emissiveIntensity = 0;
-      mat.needsUpdate = true;
-    });
-
-    // Remove all previous outline geometry
-    const toRemove: THREE.Object3D[] = [];
-    clonedScene.traverse((child) => {
-      if (child.userData.isZoneOutline) toRemove.push(child);
-    });
-    toRemove.forEach((obj) => obj.parent?.remove(obj));
-
-    // Vehicle Wraps — change body color (all panels)
-    if (activeServices.has("vehicle-wraps")) {
-      body.forEach(({ mat }) => {
-        mat.color.set(wrapColor);
-        mat.needsUpdate = true;
-      });
-    }
-
-    // ── Red wireframe OUTLINE on selected zones ──
-    const outlineMaterial = new THREE.LineBasicMaterial({
-      color: 0xff4422, // bright orange-red
-      transparent: true,
-      opacity: 0.85,
-      depthTest: true,
-    });
-
-    // Helper to add red edge outline to a mesh
-    const addOutline = (mesh: THREE.Mesh) => {
-      const edges = new THREE.EdgesGeometry(mesh.geometry, 30);
-      const line = new THREE.LineSegments(edges, outlineMaterial);
-      line.userData.isZoneOutline = true;
-      line.position.copy(mesh.position);
-      line.rotation.copy(mesh.rotation);
-      line.scale.copy(mesh.scale);
-      mesh.parent?.add(line);
-    };
-
-    // Ceramic Coating — material effect + outline on ALL body panels
-    // (model body is one mesh — zone is communicated via camera angle + UI)
-    if (activeServices.has("ceramic-coating")) {
-      body.forEach(({ mat, mesh }) => {
-        mat.roughness = 0.005;
-        mat.metalness = 0.98;
-        mat.envMapIntensity = 4.0;
-        const hsl = { h: 0, s: 0, l: 0 };
-        mat.color.getHSL(hsl);
-        mat.color.setHSL(hsl.h, Math.min(hsl.s * 1.5, 1), Math.min(hsl.l * 1.25, 0.9));
-        mat.needsUpdate = true;
-        addOutline(mesh);
-      });
-      if (ceramicZone === "ceramic-full" || ceramicZone === "ceramic-ultimate") {
-        chrome.forEach((mat) => {
-          mat.roughness = 0.0;
-          mat.metalness = 1.0;
-          mat.envMapIntensity = 5;
-          mat.needsUpdate = true;
-        });
-      }
-    }
-
-    // PPF — material effect + outline on ALL body panels
-    if (activeServices.has("ppf")) {
-      body.forEach(({ mat, mesh }) => {
-        mat.metalness = Math.max(mat.metalness, 0.75);
-        mat.roughness = Math.min(mat.roughness, 0.06);
-        mat.envMapIntensity = 3.0;
-        mat.needsUpdate = true;
-        addOutline(mesh);
-      });
-    }
-
-    // Paint Correction
-    if (activeServices.has("paint-correction")) {
-      body.forEach(({ mat }) => {
-        mat.roughness = Math.min(mat.roughness * 0.3, 0.08);
-        mat.envMapIntensity = 2.0;
-        mat.needsUpdate = true;
-      });
-    }
-
-    // Full Detail — "freshly washed" look
-    if (activeServices.has("detailing")) {
-      body.forEach(({ mat }) => {
-        mat.roughness = Math.max(mat.roughness * 0.5, 0.02);
-        mat.envMapIntensity = 2.5;
-        const hsl = { h: 0, s: 0, l: 0 };
-        mat.color.getHSL(hsl);
-        mat.color.setHSL(hsl.h, Math.min(hsl.s * 1.2, 1), Math.min(hsl.l * 1.15, 0.85));
-        mat.needsUpdate = true;
-      });
-      chrome.forEach((mat) => {
-        mat.roughness = Math.max(mat.roughness * 0.3, 0);
-        mat.envMapIntensity = 3;
-        mat.needsUpdate = true;
-      });
-    }
-
-    // Window Tint — darken glass + outline on ALL glass meshes
-    if (activeServices.has("window-tint")) {
-      glass.forEach(({ mat, mesh }) => {
-        const t = tintLevel / 100;
-        mat.color.set(new THREE.Color(t * 0.08, t * 0.08, t * 0.08));
-        mat.opacity = 0.99 - t * 0.58;
-        mat.transparent = true;
-        mat.depthWrite = false;
-        mat.side = THREE.DoubleSide;
-        if (mat.map) mat.map = null;
-        mat.needsUpdate = true;
-        addOutline(mesh);
-      });
-    }
-  }, [activeServices, wrapColor, tintLevel, ppfPackage, tintZone, ceramicZone, materialCategories, isPpfZone, isCeramicZone, isTintZone]);
-
-  return (
-    <group position={[0, 1.0, 0]}>
-      <Center disableY>
-        <group ref={modelRef}>
-          <primitive object={clonedScene} scale={1.2} />
-        </group>
-      </Center>
-    </group>
-  );
-}
-
-// ─── Polyaspartic Epoxy Floor ────────────────────────────────────────
-function ShopFloor() {
-  return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
-      <planeGeometry args={[30, 30]} />
-      <meshStandardMaterial
-        color="#18181b"
-        roughness={0.2}
-        metalness={0.35}
-        envMapIntensity={0.5}
-      />
-    </mesh>
-  );
-}
-
-// ─── Hexagonal LED Light Panel ──────────────────────────────────────
-function HexLight({ position, size = 0.55 }: { position: [number, number, number]; size?: number }) {
-  return (
-    <mesh position={position} rotation={[-Math.PI / 2, 0, 0]}>
-      <circleGeometry args={[size, 6]} />
-      <meshBasicMaterial color="#ffffff" opacity={0.7} transparent />
-    </mesh>
-  );
-}
-
-// ─── Grid of hex lights on the ceiling ──────────────────────────────
-function HexLightGrid() {
-  const lights: [number, number, number][] = [];
-  const rows = 5;
-  const cols = 7;
-  const spacingX = 1.4;
-  const spacingZ = 1.2;
-  const height = 6;
-
-  for (let r = -Math.floor(rows / 2); r <= Math.floor(rows / 2); r++) {
-    for (let c = -Math.floor(cols / 2); c <= Math.floor(cols / 2); c++) {
-      const offset = r % 2 === 0 ? 0 : spacingX * 0.5;
-      lights.push([c * spacingX + offset, height, r * spacingZ]);
-    }
-  }
-
-  return (
-    <group>
-      {lights.map((pos, i) => (
-        <HexLight key={i} position={pos} />
-      ))}
-      {/* Ceiling plane behind the hex lights */}
-      <mesh position={[0, height + 0.1, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[14, 10]} />
-        <meshBasicMaterial color="#050505" />
-      </mesh>
-      {/* Key overhead light casting down through the hex grid */}
-      <pointLight position={[0, height - 0.5, 0]} intensity={3} color="#f5f5f0" distance={15} decay={2} />
-      <pointLight position={[2, height - 0.5, 2]} intensity={1.5} color="#f0f0ff" distance={12} decay={2} />
-      <pointLight position={[-2, height - 0.5, -1]} intensity={1.5} color="#fff5f0" distance={12} decay={2} />
-    </group>
-  );
-}
-
-// ─── Loading Spinner ─────────────────────────────────────────────────
+// ─── Simple loader ──────────────────────────────────────────────────
 function Loader() {
   return (
     <Html center>
-      <div className="text-center">
-        <div className="relative w-16 h-16 mx-auto mb-4">
+      <div className="text-center select-none">
+        <div className="relative w-14 h-14 mx-auto mb-3">
           <div className="absolute inset-0 rounded-full border-2 border-rpm-gray animate-spin" style={{ borderTopColor: "#dc2626" }} />
           <div className="absolute inset-2 rounded-full border-2 border-rpm-gray animate-spin" style={{ borderBottomColor: "#0066B1", animationDirection: "reverse", animationDuration: "1.5s" }} />
         </div>
-        <p className="text-rpm-silver text-sm font-medium whitespace-nowrap">Loading 3D Model...</p>
+        <p className="text-rpm-silver text-[11px] font-medium uppercase tracking-widest whitespace-nowrap">Loading Vehicle</p>
       </div>
     </Html>
   );
 }
 
-// ─── Service Icon ────────────────────────────────────────────────────
+// ─── Service icons ──────────────────────────────────────────────────
 function ServiceIcon({ type, className }: { type: string; className?: string }) {
   const cls = cn("w-5 h-5", className);
   const p = { className: cls, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.5 };
@@ -557,45 +166,91 @@ function ServiceIcon({ type, className }: { type: string; className?: string }) 
   }
 }
 
-// ─── Main Component ──────────────────────────────────────────────────
+// ─── Camera angle preset per service/zone ───────────────────────────
+function getAzimuth(service: string, zone: string): number {
+  // 0 rad = straight-on front, +x = rotate right (clockwise from above)
+  switch (service) {
+    case "ppf":
+      if (zone === "partial-front") return 0.1; // near straight-on
+      if (zone === "full-front") return 0.35;
+      if (zone === "track-pack") return 1.1; // show side
+      return 0.8; // full-body: 3/4 front
+    case "ceramic-coating":
+      if (zone === "ceramic-front") return 0.2;
+      return 0.9; // 3/4 front
+    case "window-tint":
+      if (zone === "front-sides") return 1.4; // near side
+      if (zone === "rear-sides") return 2.1; // rear 3/4
+      if (zone === "rear-windshield") return Math.PI; // rear
+      if (zone === "windshield") return 0;
+      return 1.2; // full
+    case "vehicle-wraps":
+      return 0.85; // 3/4 hero
+    case "paint-correction":
+      return -0.9; // opposite 3/4 (show sides)
+    case "detailing":
+      return 2.4; // rear 3/4 opposite
+    default:
+      return 0.75; // default 3/4 front-right
+  }
+}
+
+// ─── Main Visualizer ────────────────────────────────────────────────
 export default function VehicleVisualizer() {
+  const [vehicleId, setVehicleId] = useState<string>(VEHICLES[0].id);
   const [activeServices, setActiveServices] = useState<Set<string>>(new Set());
   const [tintLevel, setTintLevel] = useState(35);
   const [wrapColor, setWrapColor] = useState("#1a1a1a");
+  const [wrapFinish, setWrapFinish] = useState<FinishType>("matte");
   const [ppfPackage, setPpfPackage] = useState("full-front");
   const [ceramicZone, setCeramicZone] = useState("ceramic-exterior");
   const [tintZone, setTintZone] = useState("full-vehicle");
   const [lastActiveService, setLastActiveService] = useState<string>("default");
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [mobileSheetOpen, setMobileSheetOpen] = useState(true);
-  const orbitRef = useRef<React.ComponentRef<typeof OrbitControls>>(null);
+  const [isSettled, setIsSettled] = useState(true);
+  const [autoRotate, setAutoRotate] = useState(false);
+  const [mobileDrawerExpanded, setMobileDrawerExpanded] = useState(true);
+
   const isMobile = useIsMobile();
+  const vehicle = useMemo(() => getVehicleById(vehicleId), [vehicleId]);
 
-  // Responsive camera positions (further back on mobile)
-  const cameraPositions = useMobileCameraPositions(CAMERA_POSITIONS);
-
-  // Calculate total with actual package prices
-  const estimatedTotal = CONFIGURATOR_SERVICES.filter((s) =>
-    activeServices.has(s.id)
-  ).reduce((sum, s) => {
-    if (s.id === "ppf") return sum + (PPF_PACKAGES.find((p) => p.id === ppfPackage)?.price ?? s.price);
-    if (s.id === "ceramic-coating") return sum + (CERAMIC_ZONES.find((p) => p.id === ceramicZone)?.price ?? s.price);
-    if (s.id === "window-tint") return sum + (TINT_ZONES.find((z) => z.id === tintZone)?.price ?? s.price);
-    return sum + s.price;
-  }, 0);
-
-  // Stable callback ref for animation state
-  const handleAnimating = useCallback((animating: boolean) => {
-    setIsAnimating(animating);
+  // Rotate vehicle idly after 4s of no interaction
+  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nudgeIdle = useCallback(() => {
+    setAutoRotate(false);
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+    idleTimer.current = setTimeout(() => setAutoRotate(true), 5000);
   }, []);
-
-  // Disable OrbitControls during camera animation
   useEffect(() => {
-    if (orbitRef.current) {
-      // When animating, disable orbit controls so they don't fight
-      (orbitRef.current as unknown as { enabled: boolean }).enabled = !isAnimating;
-    }
-  }, [isAnimating]);
+    nudgeIdle();
+    return () => {
+      if (idleTimer.current) clearTimeout(idleTimer.current);
+    };
+  }, [nudgeIdle, activeServices, vehicleId, wrapColor, wrapFinish, tintLevel, ppfPackage, ceramicZone, tintZone]);
+
+  // Compute azimuth from active service / zone
+  const { azimuth, zoneKey } = useMemo(() => {
+    const svc = lastActiveService;
+    let zn = "default";
+    if (svc === "ppf") zn = ppfPackage;
+    else if (svc === "ceramic-coating") zn = ceramicZone;
+    else if (svc === "window-tint") zn = tintZone;
+    return { azimuth: getAzimuth(svc, zn), zoneKey: `${svc}:${zn}` };
+  }, [lastActiveService, ppfPackage, ceramicZone, tintZone]);
+
+  const handleSettled = useCallback((settled: boolean) => setIsSettled(settled), []);
+
+  // Estimated total
+  const estimatedTotal = useMemo(() => {
+    let total = 0;
+    CONFIGURATOR_SERVICES.forEach((s) => {
+      if (!activeServices.has(s.id)) return;
+      if (s.id === "ppf") total += PPF_PACKAGES.find((p) => p.id === ppfPackage)?.price ?? s.price;
+      else if (s.id === "ceramic-coating") total += CERAMIC_ZONES.find((p) => p.id === ceramicZone)?.price ?? s.price;
+      else if (s.id === "window-tint") total += TINT_ZONES.find((z) => z.id === tintZone)?.price ?? s.price;
+      else total += s.price;
+    });
+    return total;
+  }, [activeServices, ppfPackage, ceramicZone, tintZone]);
 
   const toggleService = useCallback((id: string) => {
     setActiveServices((prev) => {
@@ -612,192 +267,213 @@ export default function VehicleVisualizer() {
     });
   }, []);
 
-  // Camera targets sub-zones when available
-  const cameraKey = useMemo(() => {
-    if (lastActiveService === "ppf" && activeServices.has("ppf")) return `ppf:${ppfPackage}`;
-    if (lastActiveService === "ceramic-coating" && activeServices.has("ceramic-coating")) return `ceramic:${ceramicZone}`;
-    if (lastActiveService === "window-tint" && activeServices.has("window-tint")) return `tint:${tintZone}`;
-    return lastActiveService;
-  }, [lastActiveService, activeServices, ppfPackage, ceramicZone, tintZone]);
-  const cameraTarget = cameraPositions[cameraKey] || cameraPositions[lastActiveService] || cameraPositions.default;
+  const handleColorChange = useCallback((color: string, finish: FinishType) => {
+    setWrapColor(color);
+    setWrapFinish(finish);
+  }, []);
+
+  // Effect state for the 3D car
+  const effectState: EffectState = useMemo(() => ({
+    wrapActive: activeServices.has("vehicle-wraps"),
+    wrapColor,
+    wrapFinish,
+    ceramicActive: activeServices.has("ceramic-coating"),
+    ceramicZone,
+    ppfActive: activeServices.has("ppf"),
+    ppfPackage,
+    paintCorrectionActive: activeServices.has("paint-correction"),
+    detailActive: activeServices.has("detailing"),
+    tintActive: activeServices.has("window-tint"),
+    tintZone,
+    tintLevel,
+  }), [activeServices, wrapColor, wrapFinish, ceramicZone, ppfPackage, tintZone, tintLevel]);
+
+  // Ambient service stats to show in an infotag
+  const activeStats = useMemo(() => {
+    switch (lastActiveService) {
+      case "ceramic-coating":
+        return ["9H Hardness", "5+ Year Durability", "Hydrophobic", "UV Protection"];
+      case "ppf":
+        return ["Self-Healing", "10yr Warranty", "Rock Chip Defense", "Optically Clear"];
+      case "window-tint":
+        return ["99% UV Rejection", "85% Heat Block", "No Signal Loss", "Lifetime Warranty"];
+      case "vehicle-wraps":
+        return ["500+ Colors", "3M Certified", "Fully Reversible", "5-7yr Lifespan"];
+      case "paint-correction":
+        return ["Multi-Stage Polish", "Swirl Removal", "Gloss Verified", "Paint-Safe"];
+      case "detailing":
+        return ["Hand Wash Only", "Full Interior", "Leather Treatment", "Engine Bay"];
+      default:
+        return [];
+    }
+  }, [lastActiveService]);
 
   return (
-    <section id="configurator" className="relative py-10 lg:py-20 overflow-hidden">
+    <section id="configurator" className="relative overflow-hidden pb-24 lg:pb-20">
       {/* BMW M-stripe accent */}
-      <div className="absolute top-0 left-0 right-0 h-1 flex">
+      <div className="absolute top-0 left-0 right-0 h-1 flex z-20">
         <div className="flex-1 bg-[#0066B1]" />
         <div className="flex-1 bg-[#1B1464]" />
         <div className="flex-1 bg-rpm-red" />
       </div>
 
+      {/* Ambient radial glow backdrop */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-1/2 left-1/4 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-rpm-red/5 rounded-full blur-[120px]" />
-        <div className="absolute top-1/3 right-1/4 w-[400px] h-[400px] bg-blue-600/5 rounded-full blur-[100px]" />
+        <div className="absolute top-1/2 left-1/4 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-rpm-red/5 rounded-full blur-[140px]" />
+        <div className="absolute top-1/3 right-1/4 w-[500px] h-[500px] bg-blue-600/5 rounded-full blur-[120px]" />
       </div>
 
-      <div className="relative max-w-[1400px] mx-auto px-4 sm:px-6">
+      <div className="relative max-w-[1440px] mx-auto px-4 sm:px-6 pt-8 lg:pt-16">
         {/* Header */}
-        <div className="text-center mb-6 lg:mb-10">
+        <div className="text-center mb-6 lg:mb-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
           >
-            <span className="inline-flex items-center gap-2 px-4 py-1.5 mb-4 text-xs font-bold uppercase tracking-[0.2em] rounded-full border border-rpm-red/30 bg-rpm-red/5 text-rpm-red">
+            <span className="inline-flex items-center gap-2 px-4 py-1.5 mb-3 text-[10px] font-bold uppercase tracking-[0.22em] rounded-full border border-rpm-red/30 bg-rpm-red/5 text-rpm-red">
               <span className="w-1.5 h-1.5 rounded-full bg-rpm-red animate-pulse" />
               3D Configurator
             </span>
-            <h2 className="text-3xl md:text-5xl lg:text-6xl font-black text-rpm-white tracking-tight">
+            <h2 className="text-3xl md:text-5xl lg:text-6xl font-black text-rpm-white tracking-tight leading-[1.05]">
               Build Your <span className="text-gradient-red">Dream Ride</span>
             </h2>
-            <p className="mt-3 text-rpm-silver text-base lg:text-lg max-w-xl mx-auto">
-              Toggle services to see real-time changes. Camera auto-focuses on each modification.
+            <p className="mt-3 text-rpm-silver text-sm lg:text-base max-w-xl mx-auto">
+              Pick your vehicle, toggle services, watch it transform. Drag to rotate.
             </p>
           </motion.div>
         </div>
 
-        {/* Main Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-4 lg:gap-6">
-          {/* 3D Canvas — relative container for mobile overlay */}
+        {/* Vehicle Picker */}
+        <div className="mb-5 lg:mb-6">
+          <div className="flex items-center justify-between mb-2 px-0.5">
+            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-rpm-silver">
+              Step 1 — Select Vehicle
+            </span>
+            <span className="text-[10px] text-rpm-silver/50">{VEHICLES.length} models</span>
+          </div>
+          <VehiclePicker vehicles={VEHICLES} selectedId={vehicleId} onSelect={setVehicleId} />
+        </div>
+
+        {/* Main layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-4 lg:gap-6">
+          {/* 3D Canvas */}
           <div className="relative">
             <div
-              className="relative rounded-2xl border border-rpm-gray/50 bg-rpm-dark h-[350px] lg:h-[600px] lens-vignette"
+              className="relative rounded-2xl border border-rpm-gray/50 bg-rpm-dark overflow-hidden lens-vignette h-[62vh] min-h-[420px] lg:h-[680px]"
               style={{ touchAction: "none" }}
+              onPointerDown={nudgeIdle}
+              onWheel={nudgeIdle}
             >
-              <div className="absolute top-0 left-0 w-24 h-1 flex z-10 rounded-br overflow-hidden">
+              {/* M-stripe corner */}
+              <div className="absolute top-0 left-0 w-20 h-1 flex z-10">
                 <div className="flex-1 bg-[#0066B1]" />
                 <div className="flex-1 bg-[#1B1464]" />
                 <div className="flex-1 bg-rpm-red" />
               </div>
 
+              {/* Vehicle name badge */}
+              <div className="absolute top-3 left-3 z-10 pointer-events-none">
+                <div className="bg-rpm-black/60 backdrop-blur-md border border-rpm-gray/40 rounded-lg px-3 py-1.5">
+                  <div className="text-[8px] font-bold uppercase tracking-[0.22em] text-rpm-red leading-none">
+                    {vehicle.year} • {vehicle.category.toUpperCase()}
+                  </div>
+                  <div className="text-sm font-black text-rpm-white mt-1 leading-none">
+                    {vehicle.make} <span className="text-rpm-silver font-bold">{vehicle.model}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Active services badges */}
+              {activeServices.size > 0 && (
+                <div className="absolute top-3 right-3 z-10 flex flex-col items-end gap-1.5 max-w-[50%] pointer-events-none">
+                  {CONFIGURATOR_SERVICES.filter((s) => activeServices.has(s.id)).map((s) => (
+                    <motion.span
+                      key={s.id}
+                      initial={{ opacity: 0, x: 10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 10 }}
+                      className="px-2.5 py-1 rounded-full bg-rpm-red/20 border border-rpm-red/40 text-rpm-red text-[10px] font-bold uppercase tracking-wider backdrop-blur-sm whitespace-nowrap"
+                    >
+                      {s.name}
+                    </motion.span>
+                  ))}
+                </div>
+              )}
+
               <Canvas
-                camera={{ position: [6, 3, 6], fov: 40, near: 0.1, far: 100 }}
-                gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 2.8 }}
-                style={{ background: "#161618", borderRadius: "1rem" }}
+                key={vehicleId /* force re-mount on vehicle switch to avoid material bleed */}
+                camera={{ position: [vehicle.cameraDistance, vehicle.cameraHeight, vehicle.cameraDistance], fov: 36, near: 0.1, far: 120 }}
+                gl={{
+                  antialias: true,
+                  toneMapping: THREE.ACESFilmicToneMapping,
+                  toneMappingExposure: 1.15,
+                  outputColorSpace: THREE.SRGBColorSpace,
+                }}
+                shadows
+                style={{ background: "#0b0b0d", borderRadius: "1rem" }}
               >
-                {/* Responsive FOV adjustment */}
                 <ResponsiveCameraConfig />
 
-                {/* Bright ambient — well-lit shop feel */}
-                <ambientLight intensity={0.8} color="#f5f5ff" />
+                <Studio />
 
-                {/* Key spotlight — strong overhead front */}
-                <spotLight position={[3, 8, 5]} angle={0.6} penumbra={0.8} intensity={6} color="#ffffff" castShadow />
-                {/* Fill — brighter for less contrast */}
-                <spotLight position={[-5, 6, -2]} angle={0.6} penumbra={1} intensity={4} color="#e8ecff" />
-                {/* Rim light — defines the edges */}
-                <spotLight position={[0, 5, -7]} angle={0.5} penumbra={0.8} intensity={3.5} color="#fff8f0" />
-                {/* Front fill for face illumination */}
-                <spotLight position={[0, 3, 8]} angle={0.7} penumbra={1} intensity={2} color="#ffffff" />
-                {/* Under-car fill to prevent black underside */}
-                <pointLight position={[0, 0.5, 0]} intensity={1} color="#ffffff" distance={8} />
-
-                {/* Custom studio environment — bright panels that reflect on the car */}
-                <Environment resolution={512} background={false}>
-                  {/* Main overhead panel — creates the big clean reflection on hood/roof */}
-                  <mesh position={[0, 8, 0]} rotation={[Math.PI / 2, 0, 0]}>
-                    <planeGeometry args={[12, 8]} />
-                    <meshBasicMaterial color="#ffffff" />
-                  </mesh>
-                  {/* Secondary overhead panels — hex-like arrangement */}
-                  <mesh position={[-3, 7.5, -2]} rotation={[Math.PI / 2, 0, 0]}>
-                    <circleGeometry args={[1.5, 6]} />
-                    <meshBasicMaterial color="#f8f8ff" />
-                  </mesh>
-                  <mesh position={[3, 7.5, -2]} rotation={[Math.PI / 2, 0, 0]}>
-                    <circleGeometry args={[1.5, 6]} />
-                    <meshBasicMaterial color="#f8f8ff" />
-                  </mesh>
-                  <mesh position={[0, 7.5, 2]} rotation={[Math.PI / 2, 0, 0]}>
-                    <circleGeometry args={[1.5, 6]} />
-                    <meshBasicMaterial color="#f8f8ff" />
-                  </mesh>
-                  {/* Right wall — medium gray for fill reflection */}
-                  <mesh position={[8, 3, 0]} rotation={[0, -Math.PI / 2, 0]}>
-                    <planeGeometry args={[14, 8]} />
-                    <meshBasicMaterial color="#2a2a2a" />
-                  </mesh>
-                  {/* Left wall — brighter for asymmetric interest */}
-                  <mesh position={[-8, 3, 0]} rotation={[0, Math.PI / 2, 0]}>
-                    <planeGeometry args={[14, 8]} />
-                    <meshBasicMaterial color="#333333" />
-                  </mesh>
-                  {/* Back wall — medium */}
-                  <mesh position={[0, 3, -8]}>
-                    <planeGeometry args={[16, 8]} />
-                    <meshBasicMaterial color="#1e1e1e" />
-                  </mesh>
-                  {/* Front — slightly brighter than before */}
-                  <mesh position={[0, 3, 8]} rotation={[0, Math.PI, 0]}>
-                    <planeGeometry args={[16, 8]} />
-                    <meshBasicMaterial color="#151515" />
-                  </mesh>
-                  {/* Floor — lighter epoxy reflection */}
-                  <mesh position={[0, -1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-                    <planeGeometry args={[20, 20]} />
-                    <meshBasicMaterial color="#141416" />
-                  </mesh>
-                </Environment>
-
-                {/* Physical hex LED light grid — visible in scene */}
-                <HexLightGrid />
-
-                {/* Polished epoxy floor */}
-                <ShopFloor />
-                <ContactShadows position={[0, 0.02, 0]} opacity={0.15} scale={20} blur={2.5} far={8} color="#000000" />
-
-                <AnimatedCamera
-                  targetPos={cameraTarget.position}
-                  targetLookAt={cameraTarget.target}
-                  onAnimating={handleAnimating}
+                <OrbitControls
+                  enablePan={false}
+                  enableZoom={false}
+                  makeDefault
+                  minPolarAngle={Math.PI / 4}
+                  maxPolarAngle={Math.PI / 2.1}
+                  autoRotate={autoRotate && isSettled && activeServices.size === 0}
+                  autoRotateSpeed={0.6}
+                  enableDamping
+                  dampingFactor={0.12}
+                  target={new THREE.Vector3(...vehicle.cameraTarget)}
+                />
+                <CameraDirector
+                  distance={vehicle.cameraDistance}
+                  height={vehicle.cameraHeight}
+                  target={vehicle.cameraTarget}
+                  azimuth={azimuth}
+                  onSettled={handleSettled}
                 />
 
-                {/* No OrbitControls — camera is curated per service, not user-controlled */}
-
                 <Suspense fallback={<Loader />}>
-                  <CarModel
-                    activeServices={activeServices}
-                    wrapColor={wrapColor}
-                    tintLevel={tintLevel}
-                    ppfPackage={ppfPackage}
-                    ceramicZone={ceramicZone}
-                    tintZone={tintZone}
-                  />
-
+                  <VehicleCar vehicle={vehicle} effectState={effectState} />
                 </Suspense>
               </Canvas>
 
-              {/* Interaction hint */}
+              {/* Hint: drag to rotate */}
               <motion.div
-                initial={{ opacity: 1 }}
+                initial={{ opacity: 0.9 }}
                 animate={{ opacity: 0 }}
-                transition={{ delay: 6, duration: 1.5 }}
-                className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 px-4 py-2 rounded-full bg-rpm-dark/80 backdrop-blur border border-rpm-gray/50 text-rpm-silver text-xs pointer-events-none"
+                transition={{ delay: 4, duration: 1.5 }}
+                className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 px-3 py-1.5 rounded-full bg-rpm-black/70 backdrop-blur border border-rpm-gray/40 text-rpm-silver text-[10px] uppercase tracking-widest pointer-events-none"
               >
-                Toggle services to see the car transform
+                Drag to rotate
               </motion.div>
 
-              {/* ── Service Infotag — only shows when camera settles ── */}
+              {/* Service infotag — only visible when settled and service active */}
               <AnimatePresence>
-                {cameraTarget.stats.length > 0 && !isAnimating && (
+                {activeStats.length > 0 && isSettled && (
                   <motion.div
-                    key={lastActiveService}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -10 }}
-                    transition={{ duration: 0.4, delay: 0.3 }}
-                    className="absolute bottom-4 left-4 z-10 pointer-events-none"
+                    key={zoneKey}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    transition={{ duration: 0.35, delay: 0.2 }}
+                    className="absolute bottom-4 left-4 z-10 pointer-events-none max-w-[65%]"
                   >
-                    <div className="bg-rpm-dark/85 backdrop-blur-md border border-rpm-red/20 rounded-lg px-3 py-2 shadow-[0_4px_20px_rgba(0,0,0,0.4)]">
-                      <div className="text-[8px] font-bold uppercase tracking-[0.15em] text-rpm-red mb-1">
+                    <div className="bg-rpm-black/80 backdrop-blur-md border border-rpm-red/25 rounded-lg px-3 py-2 shadow-[0_6px_20px_rgba(0,0,0,0.4)]">
+                      <div className="text-[8px] font-bold uppercase tracking-[0.18em] text-rpm-red mb-1 flex items-center gap-1.5">
+                        <span className="w-1 h-1 rounded-full bg-rpm-red animate-pulse" />
                         {CONFIGURATOR_SERVICES.find((s) => s.id === lastActiveService)?.name}
                       </div>
                       <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-                        {cameraTarget.stats.map((stat, i) => (
+                        {activeStats.map((stat, i) => (
                           <div key={i} className="flex items-center gap-1">
-                            <div className="w-1 h-1 rounded-full bg-rpm-red" />
-                            <span className="text-[10px] text-rpm-white/80 font-medium whitespace-nowrap">{stat}</span>
+                            <div className="w-1 h-1 rounded-full bg-rpm-red/70" />
+                            <span className="text-[10px] text-rpm-white/85 font-medium whitespace-nowrap">{stat}</span>
                           </div>
                         ))}
                       </div>
@@ -806,258 +482,378 @@ export default function VehicleVisualizer() {
                 )}
               </AnimatePresence>
 
-              {/* Active service badges */}
-              {activeServices.size > 0 && (
-                <div className="absolute top-4 right-4 z-10 flex flex-wrap gap-1.5 max-w-[200px] justify-end pointer-events-none">
-                  {CONFIGURATOR_SERVICES.filter((s) => activeServices.has(s.id)).map((s) => (
-                    <motion.span
-                      key={s.id}
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className="px-2.5 py-1 rounded-full bg-rpm-red/20 border border-rpm-red/40 text-rpm-red text-[10px] font-bold uppercase tracking-wider backdrop-blur-sm"
-                    >
-                      {s.name}
-                    </motion.span>
-                  ))}
+              {/* Auto-rotate indicator */}
+              {autoRotate && isSettled && activeServices.size === 0 && (
+                <div className="absolute bottom-4 right-4 z-10 flex items-center gap-1.5 text-rpm-silver/60 text-[9px] uppercase tracking-[0.18em] pointer-events-none">
+                  <span className="w-1 h-1 rounded-full bg-rpm-red animate-pulse" />
+                  Auto-rotate
                 </div>
               )}
             </div>
-
-            {/* ── Mobile Bottom Sheet Overlay ── */}
-            {isMobile && (
-              <div className="absolute bottom-0 left-0 right-0 z-20">
-                {/* Toggle handle */}
-                <button
-                  onClick={() => setMobileSheetOpen((o) => !o)}
-                  className="mx-auto flex flex-col items-center w-full pt-2 pb-1"
-                >
-                  <div className="w-10 h-1 rounded-full bg-rpm-silver/40 mb-1" />
-                  <span className="text-[10px] text-rpm-silver uppercase tracking-wider">
-                    {mobileSheetOpen ? "Hide Services" : "Show Services"}
-                  </span>
-                </button>
-
-                <AnimatePresence>
-                  {mobileSheetOpen && (
-                    <motion.div
-                      initial={{ y: 60, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      exit={{ y: 60, opacity: 0 }}
-                      transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                      className="bg-rpm-dark/95 backdrop-blur-xl border-t border-rpm-gray/50 rounded-t-2xl px-3 pb-3 pt-2"
-                    >
-                      {/* Horizontal scrollable service pills */}
-                      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none -mx-1 px-1">
-                        {CONFIGURATOR_SERVICES.map((service) => {
-                          const isActive = activeServices.has(service.id);
-                          return (
-                            <button
-                              key={service.id}
-                              onClick={() => toggleService(service.id)}
-                              className={cn(
-                                "flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold transition-all duration-200 border whitespace-nowrap",
-                                isActive
-                                  ? "bg-rpm-red/15 border-rpm-red/40 text-rpm-red"
-                                  : "bg-rpm-charcoal/60 border-rpm-gray/40 text-rpm-silver"
-                              )}
-                            >
-                              <ServiceIcon type={service.icon} className="w-3.5 h-3.5" />
-                              {service.name}
-                              <span className={cn("font-bold", isActive ? "text-rpm-red" : "text-rpm-silver/70")}>${service.price}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      {/* Inline sub-controls for window tint / wraps on mobile */}
-                      <AnimatePresence>
-                        {activeServices.has("window-tint") && (
-                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                            <div className="pt-2 pb-1"><TintSlider tintLevel={tintLevel} onTintChange={setTintLevel} /></div>
-                          </motion.div>
-                        )}
-                        {activeServices.has("vehicle-wraps") && (
-                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                            <div className="pt-2 pb-1"><ColorPicker selectedColor={wrapColor} onColorChange={setWrapColor} /></div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            )}
           </div>
 
-          {/* Service Panel — desktop only (hidden on mobile, shown as overlay above) */}
-          <div className="hidden lg:flex rounded-2xl border border-rpm-gray/50 bg-rpm-dark/80 backdrop-blur-xl p-6 flex-col">
+          {/* Service Panel — desktop */}
+          <div className="hidden lg:flex rounded-2xl border border-rpm-gray/50 bg-rpm-dark/80 backdrop-blur-xl p-6 flex-col max-h-[680px]">
             <div className="mb-5">
-              <h3 className="text-lg font-bold text-rpm-white">Customize Services</h3>
-              <p className="text-xs text-rpm-silver mt-1">Toggle services — camera auto-focuses on each area</p>
+              <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-rpm-silver">
+                Step 2 — Customize Services
+              </span>
+              <h3 className="text-lg font-bold text-rpm-white mt-1">What are we protecting?</h3>
             </div>
 
-            <div className="flex-1 space-y-1">
+            <div className="flex-1 space-y-1 overflow-y-auto -mr-2 pr-2">
               {CONFIGURATOR_SERVICES.map((service) => {
                 const isActive = activeServices.has(service.id);
                 return (
-                  <div key={service.id}>
-                    <button
-                      onClick={() => toggleService(service.id)}
-                      className={cn(
-                        "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group",
-                        isActive
-                          ? "bg-rpm-red/10 border border-rpm-red/30"
-                          : "hover:bg-rpm-charcoal/50 border border-transparent"
-                      )}
-                    >
-                      <div className={cn(
-                        "w-9 h-9 rounded-lg flex items-center justify-center transition-all",
-                        isActive
-                          ? "bg-rpm-red/20 text-rpm-red shadow-[0_0_12px_rgba(220,38,38,0.3)]"
-                          : "bg-rpm-charcoal text-rpm-silver group-hover:text-rpm-white"
-                      )}>
-                        <ServiceIcon type={service.icon} />
+                  <ServiceRow
+                    key={service.id}
+                    service={service}
+                    isActive={isActive}
+                    onToggle={() => toggleService(service.id)}
+                  >
+                    {isActive && service.id === "ceramic-coating" && (
+                      <ZoneList
+                        label="Coverage Zone"
+                        items={CERAMIC_ZONES}
+                        selectedId={ceramicZone}
+                        onSelect={setCeramicZone}
+                      />
+                    )}
+                    {isActive && service.id === "ppf" && (
+                      <ZoneList
+                        label="Coverage Zone"
+                        items={PPF_PACKAGES}
+                        selectedId={ppfPackage}
+                        onSelect={setPpfPackage}
+                      />
+                    )}
+                    {isActive && service.id === "window-tint" && (
+                      <div className="space-y-3">
+                        <ZoneList
+                          label="Window Zone"
+                          items={TINT_ZONES}
+                          selectedId={tintZone}
+                          onSelect={setTintZone}
+                        />
+                        <TintSlider tintLevel={tintLevel} onTintChange={setTintLevel} />
                       </div>
-                      <div className="flex-1 text-left">
-                        <div className="text-sm font-semibold text-rpm-white">{service.name}</div>
-                        <div className="text-[11px] text-rpm-silver">{service.description}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className={cn("text-sm font-bold transition-colors", isActive ? "text-rpm-red" : "text-rpm-silver")}>
-                          ${service.price}
-                        </div>
-                        <div className={cn("w-8 h-4 rounded-full mt-1 ml-auto transition-all duration-300 relative", isActive ? "bg-rpm-red shadow-[0_0_8px_rgba(220,38,38,0.5)]" : "bg-rpm-gray")}>
-                          <div className={cn("absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all duration-300", isActive ? "left-[18px]" : "left-0.5")} />
-                        </div>
-                      </div>
-                    </button>
-
-                    <AnimatePresence>
-                      {isActive && service.id === "ceramic-coating" && (
-                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                          <div className="px-4 pb-3 pt-2 space-y-1.5">
-                            <p className="text-[9px] uppercase tracking-widest text-rpm-silver mb-1">Coverage Zone</p>
-                            {CERAMIC_ZONES.map((zone) => (
-                              <button
-                                key={zone.id}
-                                onClick={() => setCeramicZone(zone.id)}
-                                className={cn(
-                                  "w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-all text-xs",
-                                  ceramicZone === zone.id
-                                    ? "bg-rpm-red/10 border border-rpm-red/30 text-rpm-white"
-                                    : "border border-rpm-gray/20 text-rpm-silver hover:border-rpm-gray/40"
-                                )}
-                              >
-                                <div>
-                                  <div className="font-semibold">{zone.name}</div>
-                                  <div className="text-[10px] text-rpm-silver/60">{zone.desc}</div>
-                                </div>
-                                <span className={cn("font-bold text-sm", ceramicZone === zone.id ? "text-rpm-red" : "text-rpm-silver")}>${zone.price.toLocaleString()}</span>
-                              </button>
-                            ))}
-                          </div>
-                        </motion.div>
-                      )}
-                      {isActive && service.id === "ppf" && (
-                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                          <div className="px-4 pb-3 pt-2 space-y-1.5">
-                            <p className="text-[9px] uppercase tracking-widest text-rpm-silver mb-1">Coverage Zone</p>
-                            {PPF_PACKAGES.map((pkg) => (
-                              <button
-                                key={pkg.id}
-                                onClick={() => setPpfPackage(pkg.id)}
-                                className={cn(
-                                  "w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-all text-xs",
-                                  ppfPackage === pkg.id
-                                    ? "bg-rpm-red/10 border border-rpm-red/30 text-rpm-white"
-                                    : "border border-rpm-gray/20 text-rpm-silver hover:border-rpm-gray/40"
-                                )}
-                              >
-                                <div>
-                                  <div className="font-semibold">{pkg.name}</div>
-                                  <div className="text-[10px] text-rpm-silver/60">{pkg.desc}</div>
-                                </div>
-                                <span className={cn("font-bold text-sm", ppfPackage === pkg.id ? "text-rpm-red" : "text-rpm-silver")}>${pkg.price.toLocaleString()}</span>
-                              </button>
-                            ))}
-                          </div>
-                        </motion.div>
-                      )}
-                      {isActive && service.id === "window-tint" && (
-                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                          <div className="px-4 pb-3 pt-2 space-y-3">
-                            {/* Zone selector */}
-                            <div className="space-y-1.5">
-                              <p className="text-[9px] uppercase tracking-widest text-rpm-silver">Window Zone</p>
-                              {TINT_ZONES.map((zone) => (
-                                <button
-                                  key={zone.id}
-                                  onClick={() => setTintZone(zone.id)}
-                                  className={cn(
-                                    "w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-all text-xs",
-                                    tintZone === zone.id
-                                      ? "bg-rpm-red/10 border border-rpm-red/30 text-rpm-white"
-                                      : "border border-rpm-gray/20 text-rpm-silver hover:border-rpm-gray/40"
-                                  )}
-                                >
-                                  <div>
-                                    <div className="font-semibold">{zone.name}</div>
-                                    <div className="text-[10px] text-rpm-silver/60">{zone.desc}</div>
-                                  </div>
-                                  <span className={cn("font-bold text-sm", tintZone === zone.id ? "text-rpm-red" : "text-rpm-silver")}>${zone.price}</span>
-                                </button>
-                              ))}
-                            </div>
-                            {/* Tint darkness slider */}
-                            <TintSlider tintLevel={tintLevel} onTintChange={setTintLevel} />
-                          </div>
-                        </motion.div>
-                      )}
-                      {isActive && service.id === "vehicle-wraps" && (
-                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                          <div className="px-4 pb-3 pt-1"><ColorPicker selectedColor={wrapColor} onColorChange={setWrapColor} /></div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
+                    )}
+                    {isActive && service.id === "vehicle-wraps" && (
+                      <ColorPicker
+                        selectedColor={wrapColor}
+                        selectedFinish={wrapFinish}
+                        onChange={handleColorChange}
+                      />
+                    )}
+                  </ServiceRow>
                 );
               })}
             </div>
 
-            {/* Total — desktop */}
+            {/* Total + CTA */}
             <div className="mt-4 pt-4 border-t border-rpm-gray/50">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-semibold uppercase tracking-wider text-rpm-silver">Estimated Total</span>
-                <motion.span key={estimatedTotal} initial={{ scale: 1.2, color: "#ef4444" }} animate={{ scale: 1, color: estimatedTotal > 0 ? "#dc2626" : "#8a8a8a" }} className="text-2xl font-black">
-                  ${estimatedTotal.toLocaleString()}{estimatedTotal > 0 && <span className="text-sm font-medium">+</span>}
+                <motion.span
+                  key={estimatedTotal}
+                  initial={{ scale: 1.18, color: "#ef4444" }}
+                  animate={{ scale: 1, color: estimatedTotal > 0 ? "#dc2626" : "#8a8a8a" }}
+                  className="text-2xl font-black tabular-nums"
+                >
+                  ${estimatedTotal.toLocaleString()}
+                  {estimatedTotal > 0 && <span className="text-sm font-medium">+</span>}
                 </motion.span>
               </div>
-              <p className="text-[10px] text-rpm-silver/60 mb-4">Starting prices. Final quote based on vehicle size &amp; condition.</p>
-              <a href="/rpm-auto-lab/contact" className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-rpm-red text-white font-bold uppercase tracking-wider text-sm transition-all duration-300 hover:shadow-[0_0_30px_rgba(220,38,38,0.4)] hover:bg-rpm-red-dark">
+              <p className="text-[10px] text-rpm-silver/60 mb-4">
+                Starting prices. Final quote based on vehicle size &amp; condition.
+              </p>
+              <a
+                href="/rpm-auto-lab/contact"
+                className="group flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-rpm-red text-white font-bold uppercase tracking-wider text-sm transition-all duration-300 hover:shadow-[0_0_30px_rgba(220,38,38,0.45)] hover:bg-rpm-red-dark"
+              >
                 Get This Package Quoted
+                <svg className="w-4 h-4 transition-transform group-hover:translate-x-0.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="m7 5 5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </a>
             </div>
           </div>
         </div>
 
-        {/* ── Mobile Sticky Total + CTA ── */}
-        {isMobile && (
-          <div className="fixed bottom-0 left-0 right-0 z-50 bg-rpm-dark/95 backdrop-blur-xl border-t border-rpm-gray/50 px-4 py-3 safe-bottom">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-rpm-silver">Estimated Total</span>
-              <motion.span key={estimatedTotal} initial={{ scale: 1.2, color: "#ef4444" }} animate={{ scale: 1, color: estimatedTotal > 0 ? "#dc2626" : "#8a8a8a" }} className="text-xl font-black">
-                ${estimatedTotal.toLocaleString()}{estimatedTotal > 0 && <span className="text-sm font-medium">+</span>}
-              </motion.span>
-            </div>
-            <a href="/rpm-auto-lab/contact" className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-rpm-red text-white font-bold uppercase tracking-wider text-sm transition-all duration-300 hover:shadow-[0_0_30px_rgba(220,38,38,0.4)] hover:bg-rpm-red-dark">
-              Get This Package Quoted
-            </a>
-          </div>
-        )}
+        {/* Attribution — CC-BY requires author credit for Sketchfab models */}
+        <p className="mt-4 text-center text-[9px] text-rpm-silver/40 tracking-wide">
+          Vehicle models: <a href="https://sketchfab.com/3d-models/tesla-model-3-596bbf266fce430181e6d0e2b1903364" target="_blank" rel="noopener noreferrer" className="underline hover:text-rpm-silver/60">Tesla Model 3</a> by ItsDiyor · <a href="https://sketchfab.com/3d-models/lamborghini-urus-2018-32964087f5d24c3e90482724ddfc2fef" target="_blank" rel="noopener noreferrer" className="underline hover:text-rpm-silver/60">Lamborghini Urus</a> by kirikom9000 · <a href="https://sketchfab.com/3d-models/tesla-cybertruck-936a6e7c4e6f46e1a3b270c93c8ea2ee" target="_blank" rel="noopener noreferrer" className="underline hover:text-rpm-silver/60">Cybertruck</a> by vasyl.yarmola — CC BY 4.0
+        </p>
       </div>
+
+      {/* ── Mobile Bottom Drawer ─────────────────────────────────── */}
+      {isMobile && (
+        <MobileDrawer
+          services={CONFIGURATOR_SERVICES}
+          activeServices={activeServices}
+          toggleService={toggleService}
+          ppfPackage={ppfPackage}
+          setPpfPackage={setPpfPackage}
+          ceramicZone={ceramicZone}
+          setCeramicZone={setCeramicZone}
+          tintZone={tintZone}
+          setTintZone={setTintZone}
+          tintLevel={tintLevel}
+          setTintLevel={setTintLevel}
+          wrapColor={wrapColor}
+          wrapFinish={wrapFinish}
+          onColorChange={handleColorChange}
+          estimatedTotal={estimatedTotal}
+          expanded={mobileDrawerExpanded}
+          setExpanded={setMobileDrawerExpanded}
+        />
+      )}
     </section>
   );
 }
 
-// Preload the model
-useGLTF.preload("/rpm-auto-lab/models/bmw-m4.glb");
+// ─── Shared inner components ────────────────────────────────────────
+interface ServiceRowProps {
+  service: { id: string; name: string; price: number; icon: string; description: string };
+  isActive: boolean;
+  onToggle: () => void;
+  children?: React.ReactNode;
+}
+
+function ServiceRow({ service, isActive, onToggle, children }: ServiceRowProps) {
+  return (
+    <div>
+      <button
+        onClick={onToggle}
+        className={cn(
+          "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group cursor-pointer text-left",
+          isActive
+            ? "bg-rpm-red/10 border border-rpm-red/30"
+            : "hover:bg-rpm-charcoal/50 border border-transparent"
+        )}
+      >
+        <div className={cn(
+          "w-9 h-9 rounded-lg flex items-center justify-center transition-all flex-shrink-0",
+          isActive
+            ? "bg-rpm-red/20 text-rpm-red shadow-[0_0_12px_rgba(220,38,38,0.3)]"
+            : "bg-rpm-charcoal text-rpm-silver group-hover:text-rpm-white"
+        )}>
+          <ServiceIcon type={service.icon} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-semibold text-rpm-white">{service.name}</div>
+          <div className="text-[11px] text-rpm-silver truncate">{service.description}</div>
+        </div>
+        <div className="text-right flex-shrink-0">
+          <div className={cn("text-sm font-bold transition-colors tabular-nums", isActive ? "text-rpm-red" : "text-rpm-silver")}>
+            ${service.price}
+          </div>
+          <div className={cn("w-8 h-4 rounded-full mt-1 ml-auto transition-all duration-300 relative", isActive ? "bg-rpm-red shadow-[0_0_8px_rgba(220,38,38,0.5)]" : "bg-rpm-gray")}>
+            <div className={cn("absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all duration-300", isActive ? "left-[18px]" : "left-0.5")} />
+          </div>
+        </div>
+      </button>
+
+      <AnimatePresence>
+        {children && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+            <div className="px-4 pb-3 pt-2">{children}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+interface ZoneListProps {
+  label: string;
+  items: readonly { id: string; name: string; desc: string; price: number }[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+}
+
+function ZoneList({ label, items, selectedId, onSelect }: ZoneListProps) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[9px] uppercase tracking-[0.18em] text-rpm-silver">{label}</p>
+      {items.map((item) => (
+        <button
+          key={item.id}
+          onClick={() => onSelect(item.id)}
+          className={cn(
+            "w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-all text-xs cursor-pointer",
+            selectedId === item.id
+              ? "bg-rpm-red/10 border border-rpm-red/30 text-rpm-white"
+              : "border border-rpm-gray/20 text-rpm-silver hover:border-rpm-gray/40"
+          )}
+        >
+          <div className="min-w-0 flex-1">
+            <div className="font-semibold">{item.name}</div>
+            <div className="text-[10px] text-rpm-silver/60 truncate">{item.desc}</div>
+          </div>
+          <span className={cn(
+            "font-bold text-sm tabular-nums flex-shrink-0 ml-2",
+            selectedId === item.id ? "text-rpm-red" : "text-rpm-silver"
+          )}>
+            ${item.price.toLocaleString()}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─── Mobile Drawer ──────────────────────────────────────────────────
+interface MobileDrawerProps {
+  services: typeof CONFIGURATOR_SERVICES;
+  activeServices: Set<string>;
+  toggleService: (id: string) => void;
+  ppfPackage: string;
+  setPpfPackage: (v: string) => void;
+  ceramicZone: string;
+  setCeramicZone: (v: string) => void;
+  tintZone: string;
+  setTintZone: (v: string) => void;
+  tintLevel: number;
+  setTintLevel: (v: number) => void;
+  wrapColor: string;
+  wrapFinish: FinishType;
+  onColorChange: (c: string, f: FinishType) => void;
+  estimatedTotal: number;
+  expanded: boolean;
+  setExpanded: (v: boolean) => void;
+}
+
+function MobileDrawer({
+  services, activeServices, toggleService, ppfPackage, setPpfPackage, ceramicZone, setCeramicZone,
+  tintZone, setTintZone, tintLevel, setTintLevel, wrapColor, wrapFinish, onColorChange, estimatedTotal,
+  expanded, setExpanded,
+}: MobileDrawerProps) {
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-40 bg-rpm-dark/96 backdrop-blur-xl border-t border-rpm-gray/60 safe-bottom">
+      {/* Handle */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex flex-col items-center pt-2 pb-1 cursor-pointer"
+        aria-label={expanded ? "Collapse services" : "Expand services"}
+      >
+        <div className="w-10 h-1 rounded-full bg-rpm-silver/40 mb-1" />
+        <span className="text-[9px] text-rpm-silver uppercase tracking-[0.22em]">
+          {expanded ? "Tap to collapse" : "Tap for services"}
+        </span>
+      </button>
+
+      {/* Collapsed: pill row + sticky total */}
+      {!expanded && (
+        <div className="px-3 pb-3">
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-none -mx-1 px-1 pb-2">
+            {services.map((service) => {
+              const isActive = activeServices.has(service.id);
+              return (
+                <button
+                  key={service.id}
+                  onClick={() => toggleService(service.id)}
+                  className={cn(
+                    "flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[10px] font-semibold transition-all duration-200 border whitespace-nowrap",
+                    isActive
+                      ? "bg-rpm-red/15 border-rpm-red/40 text-rpm-red"
+                      : "bg-rpm-charcoal/60 border-rpm-gray/40 text-rpm-silver"
+                  )}
+                >
+                  <ServiceIcon type={service.icon} className="w-3.5 h-3.5" />
+                  {service.name}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-[9px] uppercase tracking-[0.22em] text-rpm-silver">Est Total</div>
+              <motion.div
+                key={estimatedTotal}
+                initial={{ scale: 1.2 }}
+                animate={{ scale: 1 }}
+                className={cn("text-xl font-black tabular-nums", estimatedTotal > 0 ? "text-rpm-red" : "text-rpm-silver")}
+              >
+                ${estimatedTotal.toLocaleString()}{estimatedTotal > 0 && "+"}
+              </motion.div>
+            </div>
+            <a
+              href="/rpm-auto-lab/contact"
+              className="flex-1 flex items-center justify-center py-2.5 rounded-xl bg-rpm-red text-white font-bold uppercase tracking-wider text-xs"
+            >
+              Get Quote
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* Expanded: full service list */}
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="overflow-hidden"
+          >
+            <div className="px-3 pb-3 max-h-[52vh] overflow-y-auto">
+              <div className="space-y-1">
+                {services.map((service) => {
+                  const isActive = activeServices.has(service.id);
+                  return (
+                    <ServiceRow
+                      key={service.id}
+                      service={service}
+                      isActive={isActive}
+                      onToggle={() => toggleService(service.id)}
+                    >
+                      {isActive && service.id === "ceramic-coating" && (
+                        <ZoneList label="Coverage Zone" items={CERAMIC_ZONES} selectedId={ceramicZone} onSelect={setCeramicZone} />
+                      )}
+                      {isActive && service.id === "ppf" && (
+                        <ZoneList label="Coverage Zone" items={PPF_PACKAGES} selectedId={ppfPackage} onSelect={setPpfPackage} />
+                      )}
+                      {isActive && service.id === "window-tint" && (
+                        <div className="space-y-3">
+                          <ZoneList label="Window Zone" items={TINT_ZONES} selectedId={tintZone} onSelect={setTintZone} />
+                          <TintSlider tintLevel={tintLevel} onTintChange={setTintLevel} />
+                        </div>
+                      )}
+                      {isActive && service.id === "vehicle-wraps" && (
+                        <ColorPicker selectedColor={wrapColor} selectedFinish={wrapFinish} onChange={onColorChange} />
+                      )}
+                    </ServiceRow>
+                  );
+                })}
+              </div>
+              <div className="mt-3 pt-3 border-t border-rpm-gray/50 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-[9px] uppercase tracking-[0.22em] text-rpm-silver">Est Total</div>
+                  <motion.div
+                    key={estimatedTotal}
+                    initial={{ scale: 1.2 }}
+                    animate={{ scale: 1 }}
+                    className={cn("text-2xl font-black tabular-nums", estimatedTotal > 0 ? "text-rpm-red" : "text-rpm-silver")}
+                  >
+                    ${estimatedTotal.toLocaleString()}{estimatedTotal > 0 && "+"}
+                  </motion.div>
+                </div>
+                <a
+                  href="/rpm-auto-lab/contact"
+                  className="flex-1 max-w-[60%] flex items-center justify-center py-3 rounded-xl bg-rpm-red text-white font-bold uppercase tracking-wider text-sm"
+                >
+                  Get This Package Quoted
+                </a>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// Preload all vehicle GLBs so switching is instant
+VEHICLES.forEach((v) => useGLTF.preload(v.modelPath));
