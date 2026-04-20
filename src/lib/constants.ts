@@ -148,6 +148,7 @@ export const SERVICE_DETAILS: Record<string, {
   faqs: { question: string; answer: string }[];
   whyUs: string[];
   image: string;
+  video?: string;
 }> = {
   "ceramic-coating": {
     heroSubtitle: "The ultimate paint protection with a showroom finish that lasts for years",
@@ -167,6 +168,7 @@ export const SERVICE_DETAILS: Record<string, {
     ],
     whyUs: ["Certified Ceramic Pro & Gtechniq installers", "Climate-controlled application bay", "Paint correction included in every package", "5-year warranty with annual inspection option"],
     image: "/rpm-auto-lab/images/services/ceramic-coating.jpg",
+    video: "/rpm-auto-lab/videos/services/ceramic-coating.mp4",
   },
   "paint-protection-film": {
     heroSubtitle: "Invisible, self-healing armor that keeps your paint factory-fresh",
@@ -186,6 +188,7 @@ export const SERVICE_DETAILS: Record<string, {
     ],
     whyUs: ["XPEL & SunTek certified installers", "DAP (Design Access Program) precision templates", "Lifetime edge-seal guarantee", "10-year manufacturer warranty"],
     image: "/rpm-auto-lab/images/services/ppf.jpg",
+    video: "/rpm-auto-lab/videos/services/paint-protection-film.mp4",
   },
   "window-tint": {
     heroSubtitle: "Premium ceramic window film for heat rejection, UV protection & privacy",
@@ -205,6 +208,7 @@ export const SERVICE_DETAILS: Record<string, {
     ],
     whyUs: ["Ceramic-only — we don't install cheap dyed film", "Computer-cut precision for every window", "Lifetime warranty against bubbling, peeling, and fading", "Same-day service available"],
     image: "/rpm-auto-lab/images/services/window-tint.jpg",
+    video: "/rpm-auto-lab/videos/services/window-tint.mp4",
   },
   "vehicle-wraps": {
     heroSubtitle: "Transform your vehicle's entire appearance with premium vinyl wraps",
@@ -224,6 +228,7 @@ export const SERVICE_DETAILS: Record<string, {
     ],
     whyUs: ["3M & Avery Dennison certified installers", "Full panel disassembly for seamless edges", "Commercial fleet wrap specialists", "500+ color and finish options"],
     image: "/rpm-auto-lab/images/services/vehicle-wraps.jpg",
+    video: "/rpm-auto-lab/videos/services/vehicle-wraps.mp4",
   },
   "paint-correction": {
     heroSubtitle: "Restore your paint to better-than-new with multi-stage machine polishing",
@@ -243,6 +248,7 @@ export const SERVICE_DETAILS: Record<string, {
     ],
     whyUs: ["Digital paint depth measurement on every panel", "Gloss meter verification before and after", "Rupes & Flex professional polishing systems", "Perfect preparation for ceramic coating"],
     image: "/rpm-auto-lab/images/services/paint-correction.jpg",
+    video: "/rpm-auto-lab/videos/services/paint-correction.mp4",
   },
   "detailing": {
     heroSubtitle: "Meticulous hand detailing that makes your vehicle look better than new",
@@ -262,6 +268,7 @@ export const SERVICE_DETAILS: Record<string, {
     ],
     whyUs: ["Hand wash only — never automated", "pH-neutral, paint-safe products", "Filtered water system for spot-free rinse", "Climate-controlled detailing bay"],
     image: "/rpm-auto-lab/images/services/detailing.jpg",
+    video: "/rpm-auto-lab/videos/services/detailing.mp4",
   },
   "windshield-protection": {
     heroSubtitle: "Optically clear protection that prevents chips from becoming cracks",
@@ -280,6 +287,7 @@ export const SERVICE_DETAILS: Record<string, {
     ],
     whyUs: ["99%+ optical clarity", "Hydrophobic rain-repelling surface", "Compatible with ADAS and sensors", "Quick 1-2 hour installation"],
     image: "/rpm-auto-lab/images/services/windshield-protection.jpg",
+    video: "/rpm-auto-lab/videos/services/windshield-protection.mp4",
   },
 };
 

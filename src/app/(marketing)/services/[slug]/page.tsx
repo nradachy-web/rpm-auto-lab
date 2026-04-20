@@ -111,17 +111,30 @@ export default async function ServicePage({
               </AnimatedSection>
             </div>
 
-            {/* Hero Image */}
+            {/* Hero Media — AI-generated video close-up, JPG as poster */}
             <AnimatedSection direction="right" delay={0.2}>
               <div className="relative aspect-[4/3] rounded-2xl overflow-hidden">
-                <Image
-                  src={details.image}
-                  alt={service.name}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 1024px) 100vw, 50vw"
-                  priority
-                />
+                {details.video ? (
+                  <video
+                    src={details.video}
+                    poster={details.image}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    preload="metadata"
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                ) : (
+                  <Image
+                    src={details.image}
+                    alt={service.name}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 1024px) 100vw, 50vw"
+                    priority
+                  />
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-rpm-black/30 to-transparent" />
                 {/* Price badge */}
                 <div className="absolute bottom-4 right-4 bg-rpm-dark/90 backdrop-blur-md border border-rpm-gray/50 rounded-xl px-5 py-3">
