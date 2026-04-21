@@ -16,13 +16,15 @@ import type { EffectState } from "./materialEffects";
 import type { FinishType } from "./types";
 
 // ─── Service catalog ─────────────────────────────────────────────────
+// Configurator scope is deliberately narrower than /services: we only
+// visualize the three installations where a 3D preview adds real value
+// (PPF coverage zones, window tint darkness, full-vehicle wrap color).
+// Ceramic coating, paint correction, and detailing are promoted on the
+// /services pages instead.
 const CONFIGURATOR_SERVICES = [
-  { id: "ceramic-coating", name: "Ceramic Coating", price: 599, icon: "shield", description: "Mirror-like gloss & hydrophobic protection" },
+  { id: "vehicle-wraps", name: "Vehicle Wraps", price: 2499, icon: "paintbrush", description: "Full color transformation" },
   { id: "ppf", name: "Paint Protection Film", price: 799, icon: "layers", description: "Self-healing invisible armor" },
   { id: "window-tint", name: "Window Tint", price: 249, icon: "sun", description: "Ceramic tint for heat & UV rejection" },
-  { id: "vehicle-wraps", name: "Vehicle Wraps", price: 2499, icon: "paintbrush", description: "Full color transformation" },
-  { id: "paint-correction", name: "Paint Correction", price: 399, icon: "sparkles", description: "Swirl & scratch elimination" },
-  { id: "detailing", name: "Full Detail", price: 149, icon: "droplets", description: "Interior & exterior restoration" },
 ] as const;
 
 const PPF_PACKAGES = [
@@ -30,13 +32,6 @@ const PPF_PACKAGES = [
   { id: "full-front", name: "Full Front", desc: "Hood, full fenders, bumper, mirrors", price: 1499 },
   { id: "track-pack", name: "Track Package", desc: "Full front + rocker panels + A-pillars", price: 2299 },
   { id: "full-body", name: "Full Body", desc: "Every painted surface protected", price: 5499 },
-] as const;
-
-const CERAMIC_ZONES = [
-  { id: "ceramic-front", name: "Front End", desc: "Hood, bumper, front fenders", price: 599 },
-  { id: "ceramic-exterior", name: "Full Exterior", desc: "All painted exterior surfaces", price: 999 },
-  { id: "ceramic-full", name: "Full Body + Wheels", desc: "Exterior + wheels + trim", price: 1499 },
-  { id: "ceramic-ultimate", name: "Ultimate Package", desc: "Full body + interior leather + glass", price: 2499 },
 ] as const;
 
 const TINT_ZONES = [
@@ -171,27 +166,20 @@ function getAzimuth(service: string, zone: string): number {
   // 0 rad = straight-on front, +x = rotate right (clockwise from above)
   switch (service) {
     case "ppf":
-      if (zone === "partial-front") return 0.1; // near straight-on
+      if (zone === "partial-front") return 0.1;
       if (zone === "full-front") return 0.35;
-      if (zone === "track-pack") return 1.1; // show side
-      return 0.8; // full-body: 3/4 front
-    case "ceramic-coating":
-      if (zone === "ceramic-front") return 0.2;
-      return 0.9; // 3/4 front
+      if (zone === "track-pack") return 1.1;
+      return 0.8;
     case "window-tint":
-      if (zone === "front-sides") return 1.4; // near side
-      if (zone === "rear-sides") return 2.1; // rear 3/4
-      if (zone === "rear-windshield") return Math.PI; // rear
+      if (zone === "front-sides") return 1.4;
+      if (zone === "rear-sides") return 2.1;
+      if (zone === "rear-windshield") return Math.PI;
       if (zone === "windshield") return 0;
-      return 1.2; // full
+      return 1.2;
     case "vehicle-wraps":
-      return 0.85; // 3/4 hero
-    case "paint-correction":
-      return -0.9; // opposite 3/4 (show sides)
-    case "detailing":
-      return 2.4; // rear 3/4 opposite
+      return 0.85;
     default:
-      return 0.75; // default 3/4 front-right
+      return 0.75;
   }
 }
 
@@ -203,7 +191,6 @@ export default function VehicleVisualizer() {
   const [wrapColor, setWrapColor] = useState("#1a1a1a");
   const [wrapFinish, setWrapFinish] = useState<FinishType>("matte");
   const [ppfPackage, setPpfPackage] = useState("full-front");
-  const [ceramicZone, setCeramicZone] = useState("ceramic-exterior");
   const [tintZone, setTintZone] = useState("full-vehicle");
   const [lastActiveService, setLastActiveService] = useState<string>("default");
   const [isSettled, setIsSettled] = useState(true);
@@ -225,17 +212,16 @@ export default function VehicleVisualizer() {
     return () => {
       if (idleTimer.current) clearTimeout(idleTimer.current);
     };
-  }, [nudgeIdle, activeServices, vehicleId, wrapColor, wrapFinish, tintLevel, ppfPackage, ceramicZone, tintZone]);
+  }, [nudgeIdle, activeServices, vehicleId, wrapColor, wrapFinish, tintLevel, ppfPackage, tintZone]);
 
   // Compute azimuth from active service / zone
   const { azimuth, zoneKey } = useMemo(() => {
     const svc = lastActiveService;
     let zn = "default";
     if (svc === "ppf") zn = ppfPackage;
-    else if (svc === "ceramic-coating") zn = ceramicZone;
     else if (svc === "window-tint") zn = tintZone;
     return { azimuth: getAzimuth(svc, zn), zoneKey: `${svc}:${zn}` };
-  }, [lastActiveService, ppfPackage, ceramicZone, tintZone]);
+  }, [lastActiveService, ppfPackage, tintZone]);
 
   const handleSettled = useCallback((settled: boolean) => setIsSettled(settled), []);
 
@@ -245,12 +231,11 @@ export default function VehicleVisualizer() {
     CONFIGURATOR_SERVICES.forEach((s) => {
       if (!activeServices.has(s.id)) return;
       if (s.id === "ppf") total += PPF_PACKAGES.find((p) => p.id === ppfPackage)?.price ?? s.price;
-      else if (s.id === "ceramic-coating") total += CERAMIC_ZONES.find((p) => p.id === ceramicZone)?.price ?? s.price;
       else if (s.id === "window-tint") total += TINT_ZONES.find((z) => z.id === tintZone)?.price ?? s.price;
       else total += s.price;
     });
     return total;
-  }, [activeServices, ppfPackage, ceramicZone, tintZone]);
+  }, [activeServices, ppfPackage, tintZone]);
 
   const toggleService = useCallback((id: string) => {
     setActiveServices((prev) => {
@@ -277,32 +262,22 @@ export default function VehicleVisualizer() {
     wrapActive: activeServices.has("vehicle-wraps"),
     wrapColor,
     wrapFinish,
-    ceramicActive: activeServices.has("ceramic-coating"),
-    ceramicZone,
     ppfActive: activeServices.has("ppf"),
     ppfPackage,
-    paintCorrectionActive: activeServices.has("paint-correction"),
-    detailActive: activeServices.has("detailing"),
     tintActive: activeServices.has("window-tint"),
     tintZone,
     tintLevel,
-  }), [activeServices, wrapColor, wrapFinish, ceramicZone, ppfPackage, tintZone, tintLevel]);
+  }), [activeServices, wrapColor, wrapFinish, ppfPackage, tintZone, tintLevel]);
 
   // Ambient service stats to show in an infotag
   const activeStats = useMemo(() => {
     switch (lastActiveService) {
-      case "ceramic-coating":
-        return ["9H Hardness", "5+ Year Durability", "Hydrophobic", "UV Protection"];
       case "ppf":
         return ["Self-Healing", "10yr Warranty", "Rock Chip Defense", "Optically Clear"];
       case "window-tint":
         return ["99% UV Rejection", "85% Heat Block", "No Signal Loss", "Lifetime Warranty"];
       case "vehicle-wraps":
         return ["500+ Colors", "3M Certified", "Fully Reversible", "5-7yr Lifespan"];
-      case "paint-correction":
-        return ["Multi-Stage Polish", "Swirl Removal", "Gloss Verified", "Paint-Safe"];
-      case "detailing":
-        return ["Hand Wash Only", "Full Interior", "Leather Treatment", "Engine Bay"];
       default:
         return [];
     }
@@ -511,14 +486,6 @@ export default function VehicleVisualizer() {
                     isActive={isActive}
                     onToggle={() => toggleService(service.id)}
                   >
-                    {isActive && service.id === "ceramic-coating" && (
-                      <ZoneList
-                        label="Coverage Zone"
-                        items={CERAMIC_ZONES}
-                        selectedId={ceramicZone}
-                        onSelect={setCeramicZone}
-                      />
-                    )}
                     {isActive && service.id === "ppf" && (
                       <ZoneList
                         label="Coverage Zone"
@@ -594,8 +561,6 @@ export default function VehicleVisualizer() {
           toggleService={toggleService}
           ppfPackage={ppfPackage}
           setPpfPackage={setPpfPackage}
-          ceramicZone={ceramicZone}
-          setCeramicZone={setCeramicZone}
           tintZone={tintZone}
           setTintZone={setTintZone}
           tintLevel={tintLevel}
@@ -710,8 +675,6 @@ interface MobileDrawerProps {
   toggleService: (id: string) => void;
   ppfPackage: string;
   setPpfPackage: (v: string) => void;
-  ceramicZone: string;
-  setCeramicZone: (v: string) => void;
   tintZone: string;
   setTintZone: (v: string) => void;
   tintLevel: number;
@@ -725,7 +688,7 @@ interface MobileDrawerProps {
 }
 
 function MobileDrawer({
-  services, activeServices, toggleService, ppfPackage, setPpfPackage, ceramicZone, setCeramicZone,
+  services, activeServices, toggleService, ppfPackage, setPpfPackage,
   tintZone, setTintZone, tintLevel, setTintLevel, wrapColor, wrapFinish, onColorChange, estimatedTotal,
   expanded, setExpanded,
 }: MobileDrawerProps) {
@@ -809,9 +772,6 @@ function MobileDrawer({
                       isActive={isActive}
                       onToggle={() => toggleService(service.id)}
                     >
-                      {isActive && service.id === "ceramic-coating" && (
-                        <ZoneList label="Coverage Zone" items={CERAMIC_ZONES} selectedId={ceramicZone} onSelect={setCeramicZone} />
-                      )}
                       {isActive && service.id === "ppf" && (
                         <ZoneList label="Coverage Zone" items={PPF_PACKAGES} selectedId={ppfPackage} onSelect={setPpfPackage} />
                       )}

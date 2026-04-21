@@ -96,42 +96,6 @@ export function applyWrap(
   });
 }
 
-// ── Ceramic coating: enhance reflectivity WITHOUT destroying finish. ──
-// Whole-body effect. Zone info is communicated via outline + camera angle.
-export function applyCeramic(bodies: ClassifiedMesh[], chromes: ClassifiedMesh[], intense: boolean): void {
-  const applied = new Set<THREE.Material>();
-  bodies.forEach(({ material }) => {
-    if (applied.has(material)) return;
-    applied.add(material);
-    const mat = material;
-    const phys = mat as THREE.MeshPhysicalMaterial;
-    // Drop roughness by 50% (matte stays matter-ish but gains sheen)
-    mat.roughness = mat.roughness * 0.5;
-    // Strong envMap boost — this is what makes ceramic "pop"
-    mat.envMapIntensity = (mat.envMapIntensity ?? 1) * 2.5;
-    if ("clearcoat" in mat) {
-      // Ceramic adds a thin clear layer on top
-      phys.clearcoat = Math.max(phys.clearcoat ?? 0, 0.9);
-      phys.clearcoatRoughness = Math.min(phys.clearcoatRoughness ?? 1, 0.04);
-    }
-    // Very slight saturation pop — ceramic brings out paint color
-    const hsl = { h: 0, s: 0, l: 0 };
-    mat.color.getHSL(hsl);
-    mat.color.setHSL(hsl.h, Math.min(hsl.s * 1.12, 1), Math.min(hsl.l * 1.05, 0.95));
-    mat.needsUpdate = true;
-  });
-  if (intense) {
-    const cApplied = new Set<THREE.Material>();
-    chromes.forEach(({ material }) => {
-      if (cApplied.has(material)) return;
-      cApplied.add(material);
-      material.roughness = material.roughness * 0.3;
-      material.envMapIntensity = (material.envMapIntensity ?? 1) * 2;
-      material.needsUpdate = true;
-    });
-  }
-}
-
 // ── PPF: thin clear film. Subtle clarity boost, tiny orange-peel. ──────
 export function applyPPF(bodies: ClassifiedMesh[]): void {
   const applied = new Set<THREE.Material>();
@@ -148,38 +112,6 @@ export function applyPPF(bodies: ClassifiedMesh[]): void {
       mat.roughness = mat.roughness * 0.8;
     }
     mat.needsUpdate = true;
-  });
-}
-
-// ── Paint Correction: remove swirl micro-haze. ─────────────────────────
-export function applyPaintCorrection(bodies: ClassifiedMesh[]): void {
-  const applied = new Set<THREE.Material>();
-  bodies.forEach(({ material }) => {
-    if (applied.has(material)) return;
-    applied.add(material);
-    material.roughness = material.roughness * 0.55;
-    material.envMapIntensity = (material.envMapIntensity ?? 1) * 1.3;
-    material.needsUpdate = true;
-  });
-}
-
-// ── Full Detail: "freshly washed" — slight gloss + clean chrome. ───────
-export function applyDetail(bodies: ClassifiedMesh[], chromes: ClassifiedMesh[]): void {
-  const bApplied = new Set<THREE.Material>();
-  bodies.forEach(({ material }) => {
-    if (bApplied.has(material)) return;
-    bApplied.add(material);
-    material.roughness = material.roughness * 0.75;
-    material.envMapIntensity = (material.envMapIntensity ?? 1) * 1.2;
-    material.needsUpdate = true;
-  });
-  const cApplied = new Set<THREE.Material>();
-  chromes.forEach(({ material }) => {
-    if (cApplied.has(material)) return;
-    cApplied.add(material);
-    material.roughness = material.roughness * 0.4;
-    material.envMapIntensity = (material.envMapIntensity ?? 1) * 1.5;
-    material.needsUpdate = true;
   });
 }
 
@@ -250,16 +182,16 @@ export function applyZoneHighlight(
 }
 
 // ── Master state + orchestrator ────────────────────────────────────────
+// The configurator only visualizes the three services where a 3D preview
+// adds real value: wraps (color + finish), PPF (coverage zones), and
+// window tint (darkness + zone). Ceramic coating / paint correction /
+// detailing are sold on the marketing pages, not here.
 export interface EffectState {
   wrapActive: boolean;
   wrapColor: string;
   wrapFinish: FinishType;
-  ceramicActive: boolean;
-  ceramicZone: string;
   ppfActive: boolean;
   ppfPackage: string;
-  paintCorrectionActive: boolean;
-  detailActive: boolean;
   tintActive: boolean;
   tintZone: string;
   tintLevel: number;
@@ -271,16 +203,6 @@ export function ppfZoneFilter(pkg: string): (z: BodyZone) => boolean {
     case "full-front": return (z) => z === "front";
     case "track-pack": return (z) => z === "front" || z === "side";
     case "full-body": return () => true;
-    default: return () => false;
-  }
-}
-
-export function ceramicZoneFilter(zone: string): (z: BodyZone) => boolean {
-  switch (zone) {
-    case "ceramic-front": return (z) => z === "front";
-    case "ceramic-exterior":
-    case "ceramic-full":
-    case "ceramic-ultimate": return () => true;
     default: return () => false;
   }
 }
@@ -301,48 +223,25 @@ export function applyEffects(
   state: EffectState,
   sceneRoot: THREE.Object3D
 ): void {
-  // 1. Wrap sets the baseline — must run first so ceramic/PPF compose on top
+  // 1. Wrap sets color + finish on the body. Runs first so PPF clarity
+  //    boost composes on top if both toggles are active.
   if (state.wrapActive) {
     applyWrap(result.body, state.wrapColor, state.wrapFinish);
   }
-  // 2. Paint correction smooths existing paint
-  if (state.paintCorrectionActive) {
-    applyPaintCorrection(result.body);
-  }
-  // 3. PPF adds clear film
+  // 2. PPF adds the clear film layer.
   if (state.ppfActive) {
     applyPPF(result.body);
   }
-  // 4. Ceramic adds major reflectivity boost
-  if (state.ceramicActive) {
-    applyCeramic(
-      result.body,
-      result.chrome,
-      state.ceramicZone === "ceramic-full" || state.ceramicZone === "ceramic-ultimate"
-    );
-  }
-  // 5. Detail adds final "washed" sheen
-  if (state.detailActive) {
-    applyDetail(result.body, result.chrome);
-  }
-  // 6. Tint on glass (separate from body)
+  // 3. Tint darkens the zoned glass directly.
   if (state.tintActive) {
     applyTint(result.glass, state.tintLevel, tintZoneFilter(state.tintZone));
   }
 
-  // 7. Zone highlight — emissive glow on the REAL materials of covered
-  // panels. When ceramic + PPF are both on, ceramic (orange) wins over
-  // PPF (red) because it runs later and writes to the same emissive slot;
-  // acceptable overlap since ceramic is the more finish-transforming service.
-  // Tint darkens the zoned glass directly in applyTint — no separate
-  // emissive needed for glass.
+  // 4. PPF zone highlight — subtle red emissive on the covered body
+  //    panels (if the classifier could isolate them on this GLB).
   if (state.ppfActive) {
     const f = ppfZoneFilter(state.ppfPackage);
     applyZoneHighlight(result.body, (m) => f(m.bodyZone), 0xff3d1f, 0.14);
-  }
-  if (state.ceramicActive) {
-    const f = ceramicZoneFilter(state.ceramicZone);
-    applyZoneHighlight(result.body, (m) => f(m.bodyZone), 0xff7a2a, 0.10);
   }
   void sceneRoot;
 }

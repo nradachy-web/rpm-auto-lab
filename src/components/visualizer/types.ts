@@ -60,6 +60,5 @@ export interface ConfiguratorState {
   wrapFinish: FinishType;
   tintLevel: number; // VLT %
   ppfPackage: string;
-  ceramicZone: string;
   tintZone: string;
 }
