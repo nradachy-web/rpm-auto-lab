@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 interface VehicleSelection {
@@ -158,15 +158,19 @@ export default function VehicleSearch({ onChange, className }: VehicleSearchProp
     return () => { cancelled = true; };
   }, [year, make, model]);
 
-  // Notify parent when vehicle is fully selected
-  const handleChange = useCallback(
-    (y: number | null, mk: string, md: string, tr: string) => {
-      if (y && mk && md) {
-        onChange({ year: y, make: mk, model: md, trim: tr });
-      }
-    },
-    [onChange]
-  );
+  // Notify parent whenever year/make/model is a valid combo. Previously we
+  // only fired onChange from the Trim <select>'s onChange handler, which
+  // missed two cases:
+  //   1. Trim auto-selects when exactly one trim is returned — no user event.
+  //   2. Model has no trims (older vehicles, heavy-duty trucks).
+  // In both cases the parent form's validation saw an empty vehicle state
+  // and blocked the Continue button. A sync effect on year/make/model/trim
+  // fires whenever any of them changes, which covers all paths.
+  useEffect(() => {
+    if (year && make && model) {
+      onChange({ year, make, model, trim });
+    }
+  }, [year, make, model, trim, onChange]);
 
   return (
     <div className={cn("grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4", className)}>
@@ -236,11 +240,7 @@ export default function VehicleSearch({ onChange, className }: VehicleSearchProp
         <div className="relative">
           <select
             value={trim}
-            onChange={(e) => {
-              const v = e.target.value;
-              setTrim(v);
-              handleChange(year, make, model, v);
-            }}
+            onChange={(e) => setTrim(e.target.value)}
             disabled={!model || loadingTrims}
             className={cn(selectClasses, (!model || loadingTrims) && "opacity-50 cursor-not-allowed")}
           >
