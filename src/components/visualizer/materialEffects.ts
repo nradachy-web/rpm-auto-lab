@@ -221,25 +221,24 @@ export function applyTint(
   });
 }
 
-// ── Zone highlight (emissive glow on the REAL materials) ───────────────
-// Previous versions tried to add separate overlay meshes with EdgesGeometry
-// lines + translucent panel clones. On high-poly GLBs the edge lines drew
-// thousands of segments and made the whole car look like a wireframe render
-// (see user screenshots 2026-04-20). New approach: set the covered meshes'
-// own material.emissive so they glow from within in the zone color, while
-// still reading as a real car. restoreAll() snapshots emissive, so no
-// scene-level cleanup is needed — a fresh applyEffects pass restores then
-// reapplies correctly.
+// ── Zone highlight (subtle emissive rim on REAL materials) ─────────────
+// Previous versions either drew wireframe edge lines (looked like CAD) or
+// set emissive intensity so high the whole black M4 turned matte orange
+// (see user screenshot 2026-04-20). Current rule: emissive at LOW
+// intensity so dark-paint cars gain a warm hint rather than a color wash.
+// No fallback — if the zone can't be isolated on this GLB (single-mesh
+// body), we DON'T light the whole car, because that lies about coverage.
+// The service badge + camera angle still communicate which zone is
+// selected; the material's base effect (gloss boost, wrap color, etc.)
+// confirms the service is active.
 export function applyZoneHighlight(
   entries: ClassifiedMesh[],
   filter: (m: ClassifiedMesh) => boolean,
   color: number,
-  intensity = 0.32
+  intensity = 0.12
 ): void {
   const col = new THREE.Color(color);
   const seen = new Set<THREE.Material>();
-  let matched = false;
-
   entries.forEach((entry) => {
     if (!filter(entry)) return;
     if (seen.has(entry.material)) return;
@@ -247,23 +246,7 @@ export function applyZoneHighlight(
     entry.material.emissive.copy(col);
     entry.material.emissiveIntensity = intensity;
     entry.material.needsUpdate = true;
-    matched = true;
   });
-
-  // Fallback for single-mesh bodies (Tesla M3, Cybertruck, some Urus LODs):
-  // the centroid-based zone classifier can't split one giant mesh into
-  // front/side/rear, so no filter match is possible. Highlight the whole
-  // body at softer intensity — the camera angle + service badge still
-  // convey WHICH zone, and the glow confirms the service is active.
-  if (!matched && entries.length > 0) {
-    entries.forEach((entry) => {
-      if (seen.has(entry.material)) return;
-      seen.add(entry.material);
-      entry.material.emissive.copy(col);
-      entry.material.emissiveIntensity = intensity * 0.55;
-      entry.material.needsUpdate = true;
-    });
-  }
 }
 
 // ── Master state + orchestrator ────────────────────────────────────────
@@ -355,11 +338,11 @@ export function applyEffects(
   // emissive needed for glass.
   if (state.ppfActive) {
     const f = ppfZoneFilter(state.ppfPackage);
-    applyZoneHighlight(result.body, (m) => f(m.bodyZone), 0xff3d1f);
+    applyZoneHighlight(result.body, (m) => f(m.bodyZone), 0xff3d1f, 0.14);
   }
   if (state.ceramicActive) {
     const f = ceramicZoneFilter(state.ceramicZone);
-    applyZoneHighlight(result.body, (m) => f(m.bodyZone), 0xff7a2a, 0.28);
+    applyZoneHighlight(result.body, (m) => f(m.bodyZone), 0xff7a2a, 0.10);
   }
   void sceneRoot;
 }

@@ -23,7 +23,9 @@ from google.genai import types
 from google.genai.errors import ClientError
 from imageio_ffmpeg import get_ffmpeg_exe
 
-API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyBp7v2zltZ8XHIJZXY_VbIIOS8u8Lnfqwg")
+API_KEY = os.environ.get("GEMINI_API_KEY", "")
+if not API_KEY:
+    raise SystemExit("Set GEMINI_API_KEY env var before running.")
 MODEL = "veo-3.1-fast-generate-preview"  # Quality bucket exhausted; Fast is still 1080p
 MAX_IN_FLIGHT = 3  # Veo preview quota tops out around here
 ROOT = Path(__file__).resolve().parent.parent
