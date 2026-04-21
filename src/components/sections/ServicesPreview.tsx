@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import Image from "next/image";
 import Link from "next/link";
 import {
   Shield,
@@ -25,16 +25,16 @@ const iconMap: Record<string, any> = {
   Eye,
 };
 
-/* Unique gradient per card index */
-const cardGradients = [
-  "from-rpm-red/8 via-transparent to-transparent", // Ceramic — warm
-  "from-m-blue/8 via-transparent to-transparent", // PPF — blue
-  "from-amber-500/8 via-transparent to-transparent", // Tint — amber
-  "from-violet-500/8 via-transparent to-transparent", // Wraps — purple
-  "from-rpm-orange/8 via-transparent to-transparent", // Paint correction — orange
-  "from-emerald-500/8 via-transparent to-transparent", // Detailing — green
-  "from-cyan-500/8 via-transparent to-transparent", // Windshield — cyan
-];
+/* Background image per service id (mirrors /services/[slug] hero) */
+const cardImages: Record<string, string> = {
+  "ceramic-coating": "/rpm-auto-lab/images/services/ceramic-coating.jpg",
+  "paint-protection-film": "/rpm-auto-lab/images/services/ppf.jpg",
+  "window-tint": "/rpm-auto-lab/images/services/window-tint.jpg",
+  "vehicle-wraps": "/rpm-auto-lab/images/services/vehicle-wraps.jpg",
+  "paint-correction": "/rpm-auto-lab/images/services/paint-correction.jpg",
+  "detailing": "/rpm-auto-lab/images/services/detailing.jpg",
+  "windshield-protection": "/rpm-auto-lab/images/services/windshield-protection.jpg",
+};
 
 function ServiceCard({
   service,
@@ -47,6 +47,7 @@ function ServiceCard({
 }) {
   const Icon = iconMap[service.icon];
   const num = String(index + 1).padStart(2, "0");
+  const bgImage = cardImages[service.id];
 
   return (
     <AnimatedSection delay={0.08 * index} direction="up">
@@ -55,11 +56,29 @@ function ServiceCard({
         className={`block h-full group ${featured ? "md:col-span-2" : ""}`}
       >
         <div
-          className={`relative h-full rounded-2xl transition-all duration-500 overflow-hidden
-            bg-gradient-to-br ${cardGradients[index] || cardGradients[0]}
-            hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(220,38,38,0.12),0_0_50px_rgba(0,102,177,0.06)]
+          className={`relative h-full rounded-2xl transition-all duration-500 overflow-hidden bg-rpm-dark
+            hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(220,38,38,0.18),0_0_50px_rgba(0,102,177,0.08)]
             ${featured ? "p-8 md:p-10" : "p-6 md:p-8"}`}
         >
+          {/* Background photo — scales up slightly on hover */}
+          {bgImage && (
+            <>
+              <Image
+                src={bgImage}
+                alt=""
+                fill
+                sizes={featured ? "(max-width: 768px) 100vw, 66vw" : "(max-width: 768px) 100vw, 33vw"}
+                className="object-cover transition-transform duration-700 group-hover:scale-105 select-none pointer-events-none"
+                priority={index === 0}
+              />
+              {/* Two-layer gradient overlay keeps text readable on any photo:
+                  strong black wash at bottom for the price/CTA row, lighter
+                  black wash at top so the photo shows through but headings
+                  still sit on dark background. */}
+              <div className="absolute inset-0 bg-gradient-to-t from-rpm-black via-rpm-black/80 to-rpm-black/55 group-hover:from-rpm-black/95 group-hover:to-rpm-black/45 transition-colors duration-500 pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-br from-rpm-red/10 via-transparent to-transparent pointer-events-none" />
+            </>
+          )}
           {/* Top red accent line — hidden by default, shows on hover */}
           <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-rpm-red via-rpm-orange to-transparent scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left" />
 
