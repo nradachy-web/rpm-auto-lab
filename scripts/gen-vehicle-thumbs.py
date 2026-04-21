@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
-"""Generate vehicle picker thumbnails via Imagen 4.
+"""Generate vehicle picker thumbnails via Gemini 3.1 flash image model.
 
-Produces one JPEG per vehicle, 16:9, studio lighting that matches the
+Produces one JPEG per vehicle, landscape, studio lighting that matches the
 configurator's dark moody vibe. Output -> public/images/vehicles/.
+Uses gemini-3.1-flash-image-preview instead of Imagen because Imagen is
+paid-tier only on this project.
 """
 import os
 import sys
+import time
 from pathlib import Path
 
 from google import genai
-from google.genai import types
 from google.genai.errors import ClientError
 
 API_KEY = os.environ.get("GEMINI_API_KEY", "")
 if not API_KEY:
     raise SystemExit("Set GEMINI_API_KEY env var before running.")
-MODEL = "imagen-4.0-generate-001"
+MODEL = "gemini-3.1-flash-image-preview"
 ROOT = Path(__file__).resolve().parent.parent
 OUT_DIR = ROOT / "public" / "images" / "vehicles"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -51,6 +53,34 @@ JOBS = {
 }
 
 
+def generate_one(client, slug: str, prompt: str, out_path: Path) -> bool:
+    attempt = 0
+    while attempt < 6:
+        attempt += 1
+        try:
+            resp = client.models.generate_content(model=MODEL, contents=prompt)
+        except ClientError as e:
+            sc = getattr(e, "status_code", 0)
+            if sc == 429 and attempt < 6:
+                wait = 35 * attempt
+                print(f"  [429 {slug}] backoff {wait}s (try {attempt})")
+                time.sleep(wait)
+                continue
+            print(f"  [fail {slug}] {e}")
+            return False
+        parts = resp.candidates[0].content.parts if resp.candidates else []
+        for p in parts:
+            data = getattr(p, "inline_data", None)
+            if data and data.data:
+                out_path.write_bytes(data.data)
+                kb = out_path.stat().st_size / 1024
+                print(f"  [done] {out_path.name} ({kb:.0f} KB)")
+                return True
+        print(f"  [empty {slug}] no inline_data in response")
+        return False
+    return False
+
+
 def main() -> int:
     client = genai.Client(api_key=API_KEY)
     for slug, prompt in JOBS.items():
@@ -59,26 +89,8 @@ def main() -> int:
             print(f"[skip] {slug}: already generated")
             continue
         print(f"[gen] {slug}")
-        try:
-            resp = client.models.generate_images(
-                model=MODEL,
-                prompt=prompt,
-                config=types.GenerateImagesConfig(
-                    number_of_images=1,
-                    aspect_ratio="16:9",
-                    output_mime_type="image/jpeg",
-                ),
-            )
-        except ClientError as e:
-            print(f"  [fail] {slug}: {e}")
-            continue
-        if not resp.generated_images:
-            print(f"  [empty] {slug}")
-            continue
-        img = resp.generated_images[0].image
-        out.write_bytes(img.image_bytes)
-        mb = out.stat().st_size / 1024
-        print(f"  [done] {out.name} ({mb:.0f} KB)")
+        generate_one(client, slug, prompt, out)
+        time.sleep(3)  # gentle spacing to avoid per-minute caps
     print("[gen] done.")
     return 0
 

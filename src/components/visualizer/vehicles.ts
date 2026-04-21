@@ -7,6 +7,7 @@ import { BASE_PATH } from "@/lib/constants";
 // size — `scale` and `yOffset` here are fine-tuning multipliers applied on
 // top of that. Keep them near 1.0 / 0.0 unless a specific model needs help.
 const MODELS = `${BASE_PATH}/models`;
+const THUMBS = `/images/vehicles`; // VehiclePicker prefixes BASE_PATH itself
 
 export const VEHICLES: VehicleConfig[] = [
   {
@@ -17,6 +18,7 @@ export const VEHICLES: VehicleConfig[] = [
     category: "sports",
     description: "Twin-turbo inline-6 — 503 hp of sports coupe performance.",
     modelPath: `${MODELS}/bmw-m4.glb`,
+    thumbPath: `${THUMBS}/bmw-m4.jpg`,
     scale: 1.0,
     yOffset: 0,
     cameraDistance: 6.8,
@@ -39,6 +41,7 @@ export const VEHICLES: VehicleConfig[] = [
     category: "ev",
     description: "All-electric luxury sedan — instant torque, zero emissions.",
     modelPath: `${MODELS}/tesla-model-3.glb`,
+    thumbPath: `${THUMBS}/tesla-model-3.jpg`,
     scale: 1.0,
     yOffset: 0,
     cameraDistance: 6.8,
@@ -59,6 +62,7 @@ export const VEHICLES: VehicleConfig[] = [
     category: "suv",
     description: "Super SUV — 641 hp twin-turbo V8, 0–60 in 3.5s.",
     modelPath: `${MODELS}/lambo-urus.glb`,
+    thumbPath: `${THUMBS}/lambo-urus.jpg`,
     scale: 1.0,
     yOffset: 0,
     rotationY: Math.PI, // GLB ships facing -Z; flip so front points at camera
@@ -80,6 +84,7 @@ export const VEHICLES: VehicleConfig[] = [
     category: "truck",
     description: "Stainless-steel exoskeleton — built for the apocalypse and your driveway.",
     modelPath: `${MODELS}/cybertruck.glb`,
+    thumbPath: `${THUMBS}/cybertruck.jpg`,
     scale: 1.0,
     yOffset: 0,
     cameraDistance: 7.5,
