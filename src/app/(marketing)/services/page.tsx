@@ -201,7 +201,8 @@ export default function ServicesPage() {
                         ))}
                       </ul>
 
-                      {/* Price + CTA */}
+                      {/* Price + CTAs — primary goes to the dedicated service detail page,
+                          secondary goes straight to the quote form for decided buyers */}
                       <div className={`flex flex-col sm:flex-row items-start sm:items-center gap-6 ${isEven ? "sm:flex-row-reverse" : ""}`}>
                         <div className={isEven ? "text-right" : ""}>
                           <span className="text-[10px] uppercase tracking-[0.25em] text-rpm-silver font-bold block mb-1">
@@ -211,10 +212,15 @@ export default function ServicesPage() {
                             ${service.startingPrice.toLocaleString()}
                           </p>
                         </div>
-                        <Button href="/contact" variant="primary" size="md">
-                          Get a Quote
-                          <ArrowRight className="w-4 h-4" />
-                        </Button>
+                        <div className={`flex flex-col sm:flex-row gap-3 ${isEven ? "sm:flex-row-reverse" : ""}`}>
+                          <Button href={`/services/${service.id}`} variant="primary" size="md">
+                            Learn More
+                            <ArrowRight className="w-4 h-4" />
+                          </Button>
+                          <Button href="/contact" variant="outline" size="md">
+                            Get a Quote
+                          </Button>
+                        </div>
                       </div>
                       </div>
                     </div>
