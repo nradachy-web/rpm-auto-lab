@@ -221,123 +221,50 @@ export function applyTint(
   });
 }
 
-// ── Zone overlay (glowing colored panel highlight) ─────────────────────
-// Shows which meshes belong to the selected zone. Previous version used
-// 1px EdgesGeometry lines which were invisible at normal camera distance.
-// This version renders two layers per covered mesh:
-//   1. A translucent emissive panel clone (the "glow")
-//   2. An EdgesGeometry line on top for a crisp border
-// Both tagged via userData so removeAllOutlines cleans them up.
-const OUTLINE_USERDATA_KEY = "isZoneOutline";
-// Tag for overlays whose geometry we OWN (can safely dispose).
-// Panel overlays reuse the original mesh's BufferGeometry and must NEVER
-// dispose it — the real car uses the same geometry.
-const OUTLINE_OWNS_GEOMETRY = "isZoneOutlineOwnsGeometry";
-
-function disposeOverlay(obj: THREE.Object3D): void {
-  const o = obj as THREE.Mesh | THREE.LineSegments;
-  if (o.geometry && o.userData[OUTLINE_OWNS_GEOMETRY]) {
-    o.geometry.dispose();
-  }
-  // Don't dispose materials here — they're shared across overlays in a
-  // single addZoneOutline call and THREE handles the multi-ref case
-  // gracefully on scene removal.
-}
-
-export function addZoneOutline(
-  scene: THREE.Object3D,
+// ── Zone highlight (emissive glow on the REAL materials) ───────────────
+// Previous versions tried to add separate overlay meshes with EdgesGeometry
+// lines + translucent panel clones. On high-poly GLBs the edge lines drew
+// thousands of segments and made the whole car look like a wireframe render
+// (see user screenshots 2026-04-20). New approach: set the covered meshes'
+// own material.emissive so they glow from within in the zone color, while
+// still reading as a real car. restoreAll() snapshots emissive, so no
+// scene-level cleanup is needed — a fresh applyEffects pass restores then
+// reapplies correctly.
+export function applyZoneHighlight(
   entries: ClassifiedMesh[],
   filter: (m: ClassifiedMesh) => boolean,
-  color: number = 0xff3b22
+  color: number,
+  intensity = 0.32
 ): void {
-  // Glow panel: translucent emissive clone laid slightly above the surface.
-  const panelMat = new THREE.MeshStandardMaterial({
-    color,
-    emissive: color,
-    emissiveIntensity: 0.85,
-    transparent: true,
-    opacity: 0.28,
-    roughness: 0.6,
-    metalness: 0,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-    polygonOffset: true,
-    polygonOffsetFactor: -2,
-    polygonOffsetUnits: -2,
-  });
-  // Edge line on top gives crisp border even on dark cars.
-  const edgeMat = new THREE.LineBasicMaterial({
-    color,
-    transparent: true,
-    opacity: 0.95,
-    depthTest: false,
-  });
-
-  const seen = new Set<THREE.Mesh>();
-  let overlayCount = 0;
+  const col = new THREE.Color(color);
+  const seen = new Set<THREE.Material>();
+  let matched = false;
 
   entries.forEach((entry) => {
     if (!filter(entry)) return;
-    if (seen.has(entry.mesh)) return;
-    seen.add(entry.mesh);
-
-    // Panel glow — shares the mesh's geometry (no duplicate buffers) but
-    // uses the translucent emissive material. Geometry NOT owned → no dispose.
-    const panel = new THREE.Mesh(entry.mesh.geometry, panelMat);
-    panel.userData[OUTLINE_USERDATA_KEY] = true;
-    panel.renderOrder = 998;
-    panel.position.copy(entry.mesh.position);
-    panel.rotation.copy(entry.mesh.rotation);
-    panel.scale.copy(entry.mesh.scale);
-    entry.mesh.parent?.add(panel);
-
-    // Crisp edges on top — shared edge material, EdgesGeometry is OWNED.
-    const edges = new THREE.EdgesGeometry(entry.mesh.geometry, 30);
-    const line = new THREE.LineSegments(edges, edgeMat);
-    line.userData[OUTLINE_USERDATA_KEY] = true;
-    line.userData[OUTLINE_OWNS_GEOMETRY] = true;
-    line.renderOrder = 999;
-    line.position.copy(entry.mesh.position);
-    line.rotation.copy(entry.mesh.rotation);
-    line.scale.copy(entry.mesh.scale);
-    entry.mesh.parent?.add(line);
-
-    overlayCount++;
+    if (seen.has(entry.material)) return;
+    seen.add(entry.material);
+    entry.material.emissive.copy(col);
+    entry.material.emissiveIntensity = intensity;
+    entry.material.needsUpdate = true;
+    matched = true;
   });
 
-  // If NOTHING matched the filter (e.g. single-mesh body, zone-filter is
-  // partial), fall back to whole-body overlay so the user still sees that
-  // the service is active — the camera angle + infotag convey the zone.
-  if (overlayCount === 0 && entries.length > 0) {
+  // Fallback for single-mesh bodies (Tesla M3, Cybertruck, some Urus LODs):
+  // the centroid-based zone classifier can't split one giant mesh into
+  // front/side/rear, so no filter match is possible. Highlight the whole
+  // body at softer intensity — the camera angle + service badge still
+  // convey WHICH zone, and the glow confirms the service is active.
+  if (!matched && entries.length > 0) {
     entries.forEach((entry) => {
-      if (seen.has(entry.mesh)) return;
-      seen.add(entry.mesh);
-      const panel = new THREE.Mesh(entry.mesh.geometry, panelMat);
-      panel.userData[OUTLINE_USERDATA_KEY] = true;
-      panel.renderOrder = 998;
-      panel.position.copy(entry.mesh.position);
-      panel.rotation.copy(entry.mesh.rotation);
-      panel.scale.copy(entry.mesh.scale);
-      entry.mesh.parent?.add(panel);
+      if (seen.has(entry.material)) return;
+      seen.add(entry.material);
+      entry.material.emissive.copy(col);
+      entry.material.emissiveIntensity = intensity * 0.55;
+      entry.material.needsUpdate = true;
     });
   }
-
-  void scene; // scene-level cleanup handled by removeAllOutlines
 }
-
-export function removeAllOutlines(scene: THREE.Object3D): void {
-  const toRemove: THREE.Object3D[] = [];
-  scene.traverse((child) => {
-    if (child.userData[OUTLINE_USERDATA_KEY]) toRemove.push(child);
-  });
-  toRemove.forEach((obj) => {
-    obj.parent?.remove(obj);
-    disposeOverlay(obj);
-  });
-}
-
-// Backwards-compat alias in case other files still import the old name.
-export const addZoneOverlay = addZoneOutline;
 
 // ── Master state + orchestrator ────────────────────────────────────────
 export interface EffectState {
@@ -420,18 +347,19 @@ export function applyEffects(
     applyTint(result.glass, state.tintLevel, tintZoneFilter(state.tintZone));
   }
 
-  // 7. Zone outlines — visible red wireframe showing coverage
-  removeAllOutlines(sceneRoot);
+  // 7. Zone highlight — emissive glow on the REAL materials of covered
+  // panels. When ceramic + PPF are both on, ceramic (orange) wins over
+  // PPF (red) because it runs later and writes to the same emissive slot;
+  // acceptable overlap since ceramic is the more finish-transforming service.
+  // Tint darkens the zoned glass directly in applyTint — no separate
+  // emissive needed for glass.
   if (state.ppfActive) {
     const f = ppfZoneFilter(state.ppfPackage);
-    addZoneOutline(sceneRoot, result.body, (m) => f(m.bodyZone), 0xff3b22);
+    applyZoneHighlight(result.body, (m) => f(m.bodyZone), 0xff3d1f);
   }
   if (state.ceramicActive) {
     const f = ceramicZoneFilter(state.ceramicZone);
-    addZoneOutline(sceneRoot, result.body, (m) => f(m.bodyZone), 0xff7a33);
+    applyZoneHighlight(result.body, (m) => f(m.bodyZone), 0xff7a2a, 0.28);
   }
-  if (state.tintActive) {
-    const f = tintZoneFilter(state.tintZone);
-    addZoneOutline(sceneRoot, result.glass, (m) => f(m.glassZone), 0x3aa7ff);
-  }
+  void sceneRoot;
 }
