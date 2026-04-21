@@ -1,336 +1,175 @@
 'use client';
 
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useMemo, useState } from 'react';
+import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import {
-  Wrench,
-  Clock,
-  CheckCircle,
-  ChevronRight,
-  ChevronDown,
-  Calendar,
-  DollarSign,
-} from 'lucide-react';
-import { mockJobs, getServiceName } from '@/data/mockData';
-import type { MockJob } from '@/data/mockData';
 
-const JOB_STAGES = ['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'PICKED_UP'] as const;
+interface Vehicle { id: string; year: number; make: string; model: string; trim?: string | null }
+interface JobEvent { id: string; toStatus: string; note?: string | null; at: string }
+interface Job {
+  id: string;
+  services: string[];
+  status: 'scheduled' | 'in_progress' | 'completed' | 'picked_up' | 'cancelled';
+  vehicle: Vehicle;
+  events: JobEvent[];
+  scheduledAt?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  pickedUpAt?: string | null;
+  adminNote?: string | null;
+  updatedAt: string;
+}
 
-const STAGE_LABELS: Record<string, string> = {
-  SCHEDULED: 'Scheduled',
-  IN_PROGRESS: 'In Progress',
-  COMPLETED: 'Completed',
-  PICKED_UP: 'Picked Up',
+const STEPS: Job['status'][] = ['scheduled', 'in_progress', 'completed', 'picked_up'];
+const FILTERS: Array<'all' | Job['status']> = ['all', 'scheduled', 'in_progress', 'completed', 'picked_up'];
+
+const label = (s: string) => {
+  switch (s) {
+    case 'in_progress': return 'In Progress';
+    case 'picked_up': return 'Picked Up';
+    default: return s.charAt(0).toUpperCase() + s.slice(1);
+  }
 };
-
-const STATUS_CONFIG: Record<
-  string,
-  { color: string; bg: string; border: string; dot: string }
-> = {
-  SCHEDULED: {
-    color: 'text-yellow-400',
-    bg: 'bg-yellow-400/10',
-    border: 'border-yellow-400/30',
-    dot: 'bg-yellow-400',
-  },
-  IN_PROGRESS: {
-    color: 'text-blue-400',
-    bg: 'bg-blue-400/10',
-    border: 'border-blue-400/30',
-    dot: 'bg-blue-400',
-  },
-  COMPLETED: {
-    color: 'text-green-400',
-    bg: 'bg-green-400/10',
-    border: 'border-green-400/30',
-    dot: 'bg-green-400',
-  },
-  PICKED_UP: {
-    color: 'text-rpm-silver',
-    bg: 'bg-rpm-gray/30',
-    border: 'border-rpm-gray/50',
-    dot: 'bg-rpm-silver',
-  },
-};
-
-function getStageIndex(status: string): number {
-  return JOB_STAGES.indexOf(status as (typeof JOB_STAGES)[number]);
-}
-
-function ProgressPipeline({ status }: { status: string }) {
-  const currentIndex = getStageIndex(status);
-
-  return (
-    <div className="flex items-center gap-1 w-full">
-      {JOB_STAGES.map((stage, i) => {
-        const isReached = i <= currentIndex;
-        const isCurrent = i === currentIndex;
-        return (
-          <div key={stage} className="flex-1 flex flex-col items-center gap-1.5">
-            <div
-              className={cn(
-                'h-1.5 w-full rounded-full transition-colors',
-                isReached ? 'bg-rpm-red' : 'bg-rpm-gray'
-              )}
-            />
-            <span
-              className={cn(
-                'text-[10px] sm:text-xs font-medium whitespace-nowrap',
-                isCurrent ? 'text-rpm-red' : isReached ? 'text-rpm-light' : 'text-rpm-silver'
-              )}
-            >
-              {STAGE_LABELS[stage]}
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const config = STATUS_CONFIG[status] || STATUS_CONFIG.SCHEDULED;
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border',
-        config.color,
-        config.bg,
-        config.border
-      )}
-    >
-      <span className={cn('w-1.5 h-1.5 rounded-full', config.dot)} />
-      {STAGE_LABELS[status] || status}
-    </span>
-  );
-}
-
-function JobCard({ job, index }: { job: MockJob; index: number }) {
-  const [expanded, setExpanded] = useState(false);
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: index * 0.1, ease: [0.25, 0.46, 0.45, 0.94] }}
-      className="bg-rpm-dark border border-rpm-gray/50 rounded-xl overflow-hidden hover:border-rpm-gray transition-colors"
-    >
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full text-left px-5 py-4 cursor-pointer"
-      >
-        <div className="flex items-start justify-between gap-4 mb-4">
-          <div className="flex-1">
-            <h3 className="text-base font-semibold text-rpm-white">
-              {job.vehicle.year} {job.vehicle.make} {job.vehicle.model}
-            </h3>
-            <p className="text-sm text-rpm-silver mt-0.5">
-              {job.services.map(getServiceName).join(' + ')}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <StatusBadge status={job.status} />
-            <motion.div
-              animate={{ rotate: expanded ? 180 : 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              <ChevronDown className="w-4 h-4 text-rpm-silver" />
-            </motion.div>
-          </div>
-        </div>
-
-        {/* Progress Pipeline */}
-        <ProgressPipeline status={job.status} />
-      </button>
-
-      {/* Expanded Details */}
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="overflow-hidden"
-          >
-            <div className="px-5 pb-5 pt-2 border-t border-rpm-gray/30 space-y-4">
-              {/* Info Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {job.startDate && (
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-rpm-silver" />
-                    <div>
-                      <p className="text-[10px] text-rpm-silver uppercase tracking-wider">
-                        Start Date
-                      </p>
-                      <p className="text-sm text-rpm-light">
-                        {job.startDate.toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                        })}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {job.endDate && (
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-rpm-silver" />
-                    <div>
-                      <p className="text-[10px] text-rpm-silver uppercase tracking-wider">
-                        Completed
-                      </p>
-                      <p className="text-sm text-rpm-light">
-                        {job.endDate.toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                        })}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {job.total && (
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="w-4 h-4 text-rpm-silver" />
-                    <div>
-                      <p className="text-[10px] text-rpm-silver uppercase tracking-wider">
-                        Total
-                      </p>
-                      <p className="text-sm text-rpm-light font-medium">
-                        ${job.total.toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                <div className="flex items-center gap-2">
-                  <Wrench className="w-4 h-4 text-rpm-silver" />
-                  <div>
-                    <p className="text-[10px] text-rpm-silver uppercase tracking-wider">
-                      Services
-                    </p>
-                    <p className="text-sm text-rpm-light">
-                      {job.services.length}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Services */}
-              <div>
-                <p className="text-xs text-rpm-silver uppercase tracking-wider mb-2">
-                  Services Included
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {job.services.map((service) => (
-                    <span
-                      key={service}
-                      className="px-3 py-1 rounded-full text-xs font-medium bg-rpm-gray/50 text-rpm-light border border-rpm-gray"
-                    >
-                      {getServiceName(service)}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Notes */}
-              {job.notes && (
-                <div>
-                  <p className="text-xs text-rpm-silver uppercase tracking-wider mb-1">
-                    Notes
-                  </p>
-                  <p className="text-sm text-rpm-light">{job.notes}</p>
-                </div>
-              )}
-
-              {/* Photos Placeholder */}
-              <div>
-                <p className="text-xs text-rpm-silver uppercase tracking-wider mb-2">
-                  Photos
-                </p>
-                <div className="flex gap-2">
-                  {[1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className="w-20 h-20 rounded-lg bg-rpm-gray/50 border border-rpm-gray flex items-center justify-center"
-                    >
-                      <span className="text-rpm-silver text-xs">No photo</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-}
 
 export default function JobsPage() {
-  const [filter, setFilter] = useState<string>('ALL');
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]>('all');
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
 
-  const filteredJobs =
-    filter === 'ALL' ? mockJobs : mockJobs.filter((j) => j.status === filter);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const res = await api.get<{ jobs: Job[] }>('/api/portal/jobs');
+      if (cancelled) return;
+      if (!res.ok) setErr(res.error || 'Failed to load');
+      else setJobs(res.data?.jobs ?? []);
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const filtered = useMemo(() => {
+    if (filter === 'all') return jobs;
+    return jobs.filter((j) => j.status === filter);
+  }, [jobs, filter]);
+
+  if (loading) return <div className="text-rpm-silver text-sm">Loading…</div>;
+  if (err) return <div className="text-rpm-red text-sm">{err}</div>;
 
   return (
-    <div className="max-w-4xl mx-auto">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="mb-6"
-      >
-        <h1 className="text-2xl sm:text-3xl font-bold text-rpm-white">
-          My Jobs
-        </h1>
-        <p className="text-rpm-silver mt-1">
-          Track your vehicle service progress in real time.
-        </p>
-      </motion.div>
+    <div className="space-y-6">
+      <header>
+        <h1 className="text-3xl md:text-4xl font-black text-rpm-white">My Jobs</h1>
+        <p className="text-rpm-silver mt-1">Track your vehicle service progress in real time.</p>
+      </header>
 
-      {/* Filters */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.5, delay: 0.1 }}
-        className="flex flex-wrap gap-2 mb-6"
-      >
-        {['ALL', ...JOB_STAGES].map((status) => (
+      <div className="flex items-center gap-2 flex-wrap">
+        {FILTERS.map((f) => (
           <button
-            key={status}
-            onClick={() => setFilter(status)}
+            key={f}
+            onClick={() => setFilter(f)}
             className={cn(
-              'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer',
-              filter === status
-                ? 'bg-rpm-red text-white'
-                : 'bg-rpm-gray/30 text-rpm-silver hover:text-rpm-white hover:bg-rpm-gray/50'
+              'px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors',
+              filter === f ? 'bg-rpm-red text-white' : 'text-rpm-silver hover:text-rpm-white hover:bg-rpm-charcoal'
             )}
           >
-            {status === 'ALL' ? 'All' : STAGE_LABELS[status]}
+            {f === 'all' ? 'All' : label(f)}
           </button>
         ))}
-      </motion.div>
-
-      {/* Jobs List */}
-      <div className="space-y-4">
-        {filteredJobs.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="bg-rpm-dark border border-rpm-gray/50 rounded-xl p-12 text-center"
-          >
-            <Clock className="w-10 h-10 text-rpm-silver mx-auto mb-3" />
-            <p className="text-rpm-silver">
-              No jobs found with this status.
-            </p>
-          </motion.div>
-        ) : (
-          filteredJobs.map((job, i) => (
-            <JobCard key={job.id} job={job} index={i} />
-          ))
-        )}
       </div>
+
+      {filtered.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-rpm-gray/40 p-8 text-rpm-silver/70 text-sm">
+          No jobs to show.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filtered.map((job) => {
+            const currentIdx = STEPS.indexOf(job.status as Job['status']);
+            return (
+              <div key={job.id} className="rounded-xl border border-rpm-gray/50 bg-rpm-dark p-5">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <div className="text-lg font-black text-rpm-white">
+                      {job.vehicle.year} {job.vehicle.make} {job.vehicle.model}
+                    </div>
+                    <div className="text-sm text-rpm-silver mt-0.5">{job.services.join(' + ')}</div>
+                  </div>
+                  <span
+                    className={cn(
+                      'text-xs font-bold uppercase tracking-wider px-2 py-1 rounded-full',
+                      job.status === 'completed'
+                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                        : job.status === 'in_progress'
+                        ? 'bg-m-blue/10 text-m-blue border border-m-blue/30'
+                        : job.status === 'picked_up'
+                        ? 'bg-rpm-gray/20 text-rpm-silver border border-rpm-gray/40'
+                        : job.status === 'cancelled'
+                        ? 'bg-rpm-red/10 text-rpm-red border border-rpm-red/30'
+                        : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                    )}
+                  >
+                    • {label(job.status)}
+                  </span>
+                </div>
+
+                {/* Progress bar */}
+                {job.status !== 'cancelled' && (
+                  <div className="grid grid-cols-4 gap-1 mb-2">
+                    {STEPS.map((s, i) => (
+                      <div
+                        key={s}
+                        className={cn(
+                          'h-1.5 rounded-full transition-colors',
+                          i <= currentIdx ? 'bg-rpm-red' : 'bg-rpm-gray/40'
+                        )}
+                      />
+                    ))}
+                  </div>
+                )}
+                {job.status !== 'cancelled' && (
+                  <div className="grid grid-cols-4 gap-1 text-[10px] uppercase tracking-wider">
+                    {STEPS.map((s, i) => (
+                      <div
+                        key={s}
+                        className={cn(
+                          'text-center',
+                          i <= currentIdx ? 'text-rpm-red font-semibold' : 'text-rpm-silver/60'
+                        )}
+                      >
+                        {label(s)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {job.adminNote && (
+                  <div className="mt-3 text-sm text-rpm-silver italic">
+                    Note from the shop: {job.adminNote}
+                  </div>
+                )}
+
+                {job.events.length > 0 && (
+                  <details className="mt-3 text-xs text-rpm-silver">
+                    <summary className="cursor-pointer hover:text-rpm-white">History ({job.events.length})</summary>
+                    <ul className="mt-2 space-y-1">
+                      {job.events.map((e) => (
+                        <li key={e.id} className="flex items-center gap-2">
+                          <span className="text-rpm-red">•</span>
+                          <span>{label(e.toStatus)}</span>
+                          <span className="text-rpm-silver/60">— {new Date(e.at).toLocaleString()}</span>
+                          {e.note && <span className="text-rpm-silver/80 italic">"{e.note}"</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

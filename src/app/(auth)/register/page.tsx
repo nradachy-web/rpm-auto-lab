@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 import { User, Mail, Phone, Lock, AlertCircle } from "lucide-react";
+import { api } from "@/lib/api";
 
 function getPasswordStrength(password: string): {
   score: number;
@@ -55,22 +56,27 @@ export default function RegisterPage() {
       setError("Passwords do not match.");
       return;
     }
-    if (form.password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (form.password.length < 8) {
+      setError("Password must be at least 8 characters.");
       return;
     }
 
     setLoading(true);
-
-    try {
-      // Demo mode — will wire to registration API in production
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      router.push("/login?registered=true");
-    } catch {
-      setError("Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
+    const res = await api.post<{ user: { role: "customer" | "admin" } }>(
+      "/api/auth/register",
+      {
+        name: form.name,
+        email: form.email,
+        phone: form.phone || undefined,
+        password: form.password,
+      }
+    );
+    setLoading(false);
+    if (!res.ok || !res.data?.user) {
+      setError(res.error || "Something went wrong. Please try again.");
+      return;
     }
+    router.push("/portal/dashboard");
   };
 
   const inputClass =
@@ -182,7 +188,7 @@ export default function RegisterPage() {
                 type="password"
                 value={form.password}
                 onChange={update("password")}
-                placeholder="At least 6 characters"
+                placeholder="At least 8 characters"
                 required
                 className={inputClass}
               />

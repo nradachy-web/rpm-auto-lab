@@ -6,6 +6,11 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 import { Mail, Lock, AlertCircle } from "lucide-react";
+import { api } from "@/lib/api";
+
+interface LoginResponse {
+  user: { id: string; email: string; name: string; role: "customer" | "admin" };
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -18,16 +23,13 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
-
-    try {
-      // Demo mode — will wire to NextAuth in production
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      router.push("/portal/dashboard");
-    } catch {
-      setError("Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
+    const res = await api.post<LoginResponse>("/api/auth/login", { email, password });
+    setLoading(false);
+    if (!res.ok || !res.data?.user) {
+      setError(res.error || "Something went wrong. Please try again.");
+      return;
     }
+    router.push(res.data.user.role === "admin" ? "/portal/admin" : "/portal/dashboard");
   };
 
   return (

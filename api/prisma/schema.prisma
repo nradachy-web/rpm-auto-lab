@@ -1,0 +1,136 @@
+// RPM Auto Lab — customer portal + admin back-office schema
+// Hosted on a separate Neon database from the main Apex app.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  customer
+  admin
+}
+
+enum QuoteStatus {
+  submitted        // customer sent in a request, not yet responded to
+  quoted           // shop sent a number back
+  approved         // customer accepted
+  converted        // became a scheduled job
+  declined
+}
+
+enum JobStatus {
+  scheduled
+  in_progress
+  completed
+  picked_up
+  cancelled
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  passwordHash       String?   // null when account is created via quote-submit and password hasn't been set yet
+  name               String
+  phone              String?
+  role               Role      @default(customer)
+  emailVerifiedAt    DateTime?
+
+  // One-time token for the "set your password" magic link that ships with
+  // the welcome email after a quote submission.
+  setPasswordToken        String?   @unique
+  setPasswordTokenExpiry  DateTime?
+
+  // Password reset token (if/when we add self-serve reset).
+  resetToken         String?   @unique
+  resetTokenExpiry   DateTime?
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  vehicles           Vehicle[]
+  quotes             Quote[]
+  jobs               Job[]
+
+  @@index([role])
+}
+
+model Vehicle {
+  id        String   @id @default(cuid())
+  userId    String
+  year      Int
+  make      String
+  model     String
+  trim      String?
+  color     String?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quotes    Quote[]
+  jobs      Job[]
+
+  @@index([userId])
+}
+
+model Quote {
+  id             String      @id @default(cuid())
+  userId         String
+  vehicleId      String
+  services       String[]    // service IDs like "ceramic-coating", "ppf"
+  estimatedTotal Int         // stored in whole dollars
+  notes          String?
+  status         QuoteStatus @default(submitted)
+  quotedAmount   Int?        // null until shop responds
+  submittedAt    DateTime    @default(now())
+  respondedAt    DateTime?
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehicle   Vehicle    @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  jobs      Job[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model Job {
+  id           String     @id @default(cuid())
+  userId       String
+  quoteId      String?
+  vehicleId    String
+  services     String[]
+  status       JobStatus  @default(scheduled)
+  adminNote    String?
+
+  // Timeline
+  scheduledAt  DateTime?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  pickedUpAt   DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quote        Quote?            @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  vehicle      Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  events       JobStatusEvent[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model JobStatusEvent {
+  id        String    @id @default(cuid())
+  jobId     String
+  fromStatus JobStatus?
+  toStatus   JobStatus
+  note       String?
+  at         DateTime  @default(now())
+
+  job       Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+}

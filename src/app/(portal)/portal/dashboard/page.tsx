@@ -1,254 +1,138 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import {
-  Wrench,
-  FileText,
-  Car,
-  Plus,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  ChevronRight,
-} from 'lucide-react';
-import {
-  mockUser,
-  mockJobs,
-  mockQuotes,
-  mockVehicles,
-  mockActivity,
-} from '@/data/mockData';
+import { Car, Wrench, FileText, Clock } from 'lucide-react';
+import { api } from '@/lib/api';
 
-const containerVariants = {
-  hidden: {},
-  show: {
-    transition: { staggerChildren: 0.08 },
-  },
-};
+interface Vehicle { id: string; year: number; make: string; model: string; trim?: string | null }
+interface Quote { id: string; services: string[]; estimatedTotal: number; status: string; submittedAt: string; vehicle: Vehicle }
+interface Job { id: string; services: string[]; status: string; vehicle: Vehicle; updatedAt: string }
 
-const cardVariants = {
-  hidden: { opacity: 0, y: 20 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] as const },
-  },
-};
+interface Overview { vehicles: Vehicle[]; quotes: Quote[]; jobs: Job[] }
 
-const stats = [
-  {
-    label: 'Active Jobs',
-    value: mockJobs.filter((j) => j.status === 'IN_PROGRESS' || j.status === 'SCHEDULED').length,
-    icon: Wrench,
-    color: 'text-rpm-red',
-    bg: 'bg-rpm-red/10',
-    href: '/portal/jobs',
-  },
-  {
-    label: 'Pending Quotes',
-    value: mockQuotes.filter((q) => q.status === 'PENDING' || q.status === 'REVIEWED').length,
-    icon: FileText,
-    color: 'text-yellow-400',
-    bg: 'bg-yellow-400/10',
-    href: '/portal/quotes',
-  },
-  {
-    label: 'Vehicles',
-    value: mockVehicles.length,
-    icon: Car,
-    color: 'text-blue-400',
-    bg: 'bg-blue-400/10',
-    href: '/portal/vehicles',
-  },
-];
-
-function getActivityIcon(type: string) {
-  switch (type) {
-    case 'job_completed':
-    case 'job_picked_up':
-    case 'quote_approved':
-      return <CheckCircle className="w-4 h-4 text-green-400" />;
-    case 'job_update':
-      return <Clock className="w-4 h-4 text-blue-400" />;
-    case 'quote_received':
-      return <AlertCircle className="w-4 h-4 text-yellow-400" />;
-    default:
-      return <Clock className="w-4 h-4 text-rpm-silver" />;
+const statusLabel = (s: string) => {
+  switch (s) {
+    case 'in_progress': return 'In Progress';
+    case 'picked_up': return 'Picked Up';
+    default: return s.charAt(0).toUpperCase() + s.slice(1);
   }
-}
-
-function formatRelativeDate(date: Date): string {
-  const now = new Date('2026-03-24T12:00:00');
-  const diffMs = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) return `${diffDays} days ago`;
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
+};
+const statusColor = (s: string) => {
+  switch (s) {
+    case 'completed': return 'text-emerald-400';
+    case 'in_progress': return 'text-m-blue';
+    case 'picked_up': return 'text-rpm-silver';
+    case 'cancelled': return 'text-rpm-red';
+    default: return 'text-amber-400';
+  }
+};
 
 export default function DashboardPage() {
+  const [data, setData] = useState<Overview | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const res = await api.get<Overview>('/api/portal/dashboard');
+      if (cancelled) return;
+      if (!res.ok) setErr(res.error || 'Failed to load');
+      else setData(res.data);
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (loading) return <div className="text-rpm-silver text-sm">Loading…</div>;
+  if (err) return <div className="text-rpm-red text-sm">{err}</div>;
+  if (!data) return null;
+
+  const activeJobs = data.jobs.filter((j) => j.status !== 'picked_up' && j.status !== 'cancelled');
+
   return (
-    <div className="max-w-6xl mx-auto">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="mb-8"
-      >
-        <h1 className="text-2xl sm:text-3xl font-bold text-rpm-white">
-          Welcome back, {mockUser.name?.split(' ')[0]}
-        </h1>
-        <p className="text-rpm-silver mt-1">
-          Here&apos;s what&apos;s happening with your vehicles.
-        </p>
-      </motion.div>
+    <div className="space-y-8">
+      <header>
+        <h1 className="text-3xl md:text-4xl font-black text-rpm-white">Dashboard</h1>
+        <p className="text-rpm-silver mt-1">Here&apos;s everything happening with your vehicles.</p>
+      </header>
 
-      {/* Stats Cards */}
-      <motion.div
-        variants={containerVariants}
-        initial="hidden"
-        animate="show"
-        className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8"
-      >
-        {stats.map((stat) => (
-          <motion.div key={stat.label} variants={cardVariants}>
-            <Link
-              href={stat.href}
-              className="block bg-rpm-dark border border-rpm-gray/50 rounded-xl p-5 hover:border-rpm-gray transition-colors group"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className={`p-2.5 rounded-lg ${stat.bg}`}>
-                  <stat.icon className={`w-5 h-5 ${stat.color}`} />
-                </div>
-                <ChevronRight className="w-4 h-4 text-rpm-silver opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <p className="text-3xl font-bold text-rpm-white">{stat.value}</p>
-              <p className="text-sm text-rpm-silver mt-1">{stat.label}</p>
-            </Link>
-          </motion.div>
-        ))}
-      </motion.div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Activity */}
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="show"
-          className="lg:col-span-2"
-        >
-          <motion.div
-            variants={cardVariants}
-            className="bg-rpm-dark border border-rpm-gray/50 rounded-xl overflow-hidden"
-          >
-            <div className="px-5 py-4 border-b border-rpm-gray/50 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-rpm-white">
-                Recent Activity
-              </h2>
-              <Link
-                href="/portal/jobs"
-                className="text-sm text-rpm-red hover:text-rpm-red-glow transition-colors"
-              >
-                View all
-              </Link>
-            </div>
-            <div className="divide-y divide-rpm-gray/30">
-              {mockActivity.map((event) => (
-                <div
-                  key={event.id}
-                  className="px-5 py-4 flex items-start gap-3 hover:bg-rpm-gray/20 transition-colors"
-                >
-                  <div className="mt-0.5">{getActivityIcon(event.type)}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-rpm-light">{event.message}</p>
-                    <p className="text-xs text-rpm-silver mt-1">
-                      {formatRelativeDate(event.date)}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        </motion.div>
-
-        {/* Quick Actions */}
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="show"
-        >
-          <motion.div
-            variants={cardVariants}
-            className="bg-rpm-dark border border-rpm-gray/50 rounded-xl overflow-hidden"
-          >
-            <div className="px-5 py-4 border-b border-rpm-gray/50">
-              <h2 className="text-lg font-semibold text-rpm-white">
-                Quick Actions
-              </h2>
-            </div>
-            <div className="p-4 space-y-3">
-              <Link
-                href="/contact"
-                className="flex items-center gap-3 w-full px-4 py-3 rounded-lg bg-rpm-red/10 border border-rpm-red/20 text-rpm-red hover:bg-rpm-red/20 transition-colors group"
-              >
-                <Plus className="w-5 h-5" />
-                <span className="text-sm font-medium">Request New Quote</span>
-                <ChevronRight className="w-4 h-4 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
-              </Link>
-              <Link
-                href="/portal/vehicles"
-                className="flex items-center gap-3 w-full px-4 py-3 rounded-lg bg-rpm-gray/30 border border-rpm-gray/50 text-rpm-light hover:bg-rpm-gray/50 transition-colors group"
-              >
-                <Car className="w-5 h-5" />
-                <span className="text-sm font-medium">Add Vehicle</span>
-                <ChevronRight className="w-4 h-4 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
-              </Link>
-            </div>
-          </motion.div>
-
-          {/* Current Active Job Preview */}
-          {mockJobs.filter((j) => j.status === 'IN_PROGRESS').length > 0 && (
-            <motion.div variants={cardVariants} className="mt-4">
-              <div className="bg-rpm-dark border border-rpm-red/20 rounded-xl overflow-hidden">
-                <div className="px-5 py-4 border-b border-rpm-gray/50 flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-rpm-red animate-pulse" />
-                  <h2 className="text-lg font-semibold text-rpm-white">
-                    In Progress
-                  </h2>
-                </div>
-                {mockJobs
-                  .filter((j) => j.status === 'IN_PROGRESS')
-                  .map((job) => (
-                    <Link
-                      key={job.id}
-                      href="/portal/jobs"
-                      className="block px-5 py-4 hover:bg-rpm-gray/20 transition-colors"
-                    >
-                      <p className="text-sm font-medium text-rpm-white">
-                        {job.vehicle.year} {job.vehicle.make} {job.vehicle.model}
-                      </p>
-                      <p className="text-xs text-rpm-silver mt-1">
-                        {job.services
-                          .map((s) =>
-                            s
-                              .split('-')
-                              .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-                              .join(' ')
-                          )
-                          .join(' + ')}
-                      </p>
-                    </Link>
-                  ))}
-              </div>
-            </motion.div>
-          )}
-        </motion.div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard icon={Car} label="Vehicles" value={data.vehicles.length} href="/portal/vehicles" />
+        <StatCard icon={Wrench} label="Active jobs" value={activeJobs.length} href="/portal/jobs" />
+        <StatCard icon={FileText} label="Quotes" value={data.quotes.length} href="/portal/quotes" />
+        <StatCard icon={Clock} label="Pending" value={data.quotes.filter((q) => q.status === 'submitted').length} href="/portal/quotes" />
       </div>
+
+      <section>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-bold text-rpm-white">Active jobs</h2>
+          <Link href="/portal/jobs" className="text-xs text-rpm-red hover:text-rpm-red-glow">View all →</Link>
+        </div>
+        {activeJobs.length === 0 ? (
+          <EmptyState message="No active jobs. Once your quote is accepted and scheduled it'll show up here." />
+        ) : (
+          <div className="space-y-2">
+            {activeJobs.slice(0, 5).map((job) => (
+              <div key={job.id} className="rounded-xl border border-rpm-gray/50 bg-rpm-dark p-4 flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-rpm-white">{job.vehicle.year} {job.vehicle.make} {job.vehicle.model}</div>
+                  <div className="text-xs text-rpm-silver mt-1">{job.services.join(' + ')}</div>
+                </div>
+                <div className={`text-xs font-semibold uppercase tracking-wider ${statusColor(job.status)}`}>
+                  {statusLabel(job.status)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-bold text-rpm-white">Recent quotes</h2>
+          <Link href="/portal/quotes" className="text-xs text-rpm-red hover:text-rpm-red-glow">View all →</Link>
+        </div>
+        {data.quotes.length === 0 ? (
+          <EmptyState message="Submit a quote request to kick things off." />
+        ) : (
+          <div className="space-y-2">
+            {data.quotes.slice(0, 5).map((q) => (
+              <div key={q.id} className="rounded-xl border border-rpm-gray/50 bg-rpm-dark p-4 flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-rpm-white">{q.vehicle.year} {q.vehicle.make} {q.vehicle.model}</div>
+                  <div className="text-xs text-rpm-silver mt-1">{q.services.join(' + ')}</div>
+                </div>
+                <div className="text-right">
+                  <div className={`text-xs font-semibold uppercase tracking-wider ${statusColor(q.status)}`}>{statusLabel(q.status)}</div>
+                  <div className="text-sm font-bold text-rpm-white mt-1">${q.estimatedTotal.toLocaleString()}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function StatCard({ icon: Icon, label, value, href }: { icon: React.ComponentType<{ className?: string }>; label: string; value: number; href: string }) {
+  return (
+    <Link href={href} className="block rounded-xl border border-rpm-gray/50 bg-rpm-dark hover:border-rpm-red/40 transition-colors p-4">
+      <div className="flex items-center gap-3 mb-2">
+        <Icon className="w-4 h-4 text-rpm-red" />
+        <span className="text-xs uppercase tracking-wider text-rpm-silver">{label}</span>
+      </div>
+      <div className="text-2xl font-black text-rpm-white tabular-nums">{value}</div>
+    </Link>
+  );
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="rounded-xl border border-dashed border-rpm-gray/40 p-6 text-rpm-silver/70 text-sm">
+      {message}
     </div>
   );
 }

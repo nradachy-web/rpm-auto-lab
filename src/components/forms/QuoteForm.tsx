@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { SERVICES } from "@/lib/constants";
 import VehicleSearch from "./VehicleSearch";
 import Button from "@/components/ui/Button";
+import { api } from "@/lib/api";
 
 interface VehicleInfo {
   year: number;
@@ -125,36 +126,41 @@ export default function QuoteForm() {
     setStep((s) => Math.max(s - 1, 0));
   };
 
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [accountCreated, setAccountCreated] = useState(false);
+
   const handleSubmit = async () => {
     setSubmitting(true);
-    try {
-      const payload = {
-        vehicle: {
-          year: vehicle.year,
-          make: vehicle.make,
-          model: vehicle.model,
-          trim: vehicle.trim || undefined,
-          color: vehicle.color || undefined,
-        },
-        services: selectedServices,
-        contact: {
-          name: contact.name,
-          email: contact.email,
-          phone: contact.phone,
-          notes: contact.notes || undefined,
-        },
-        estimatedTotal,
-      };
-
-      console.log("Submitting quote:", payload);
-      // Client-side demo — will wire to backend API in production
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      setSubmitted(true);
-    } catch (err) {
-      console.error("Failed to submit quote:", err);
-    } finally {
+    setSubmitError(null);
+    const payload = {
+      vehicle: {
+        year: vehicle.year,
+        make: vehicle.make,
+        model: vehicle.model,
+        trim: vehicle.trim || undefined,
+        color: vehicle.color || undefined,
+      },
+      services: selectedServices,
+      contact: {
+        name: contact.name,
+        email: contact.email,
+        phone: contact.phone,
+        notes: contact.notes || undefined,
+      },
+      estimatedTotal,
+    };
+    const res = await api.post<{ ok: boolean; quoteId: string; accountCreated: boolean }>(
+      "/api/quotes/submit",
+      payload
+    );
+    if (!res.ok || !res.data?.ok) {
+      setSubmitError(res.error || "We couldn't submit your quote. Please try again or call us directly.");
       setSubmitting(false);
+      return;
     }
+    setAccountCreated(Boolean(res.data.accountCreated));
+    setSubmitted(true);
+    setSubmitting(false);
   };
 
   if (submitted) {
@@ -200,6 +206,12 @@ export default function QuoteForm() {
           {vehicle.year} {vehicle.make} {vehicle.model} &mdash;{" "}
           {selectedServices.length} service{selectedServices.length > 1 ? "s" : ""} selected
         </p>
+        {accountCreated && (
+          <p className="text-rpm-silver/80 mt-6 text-sm max-w-md mx-auto leading-relaxed">
+            We&apos;ve also emailed you a link to set up your customer portal account.
+            Check <span className="text-rpm-white font-medium">{contact.email}</span> (and spam/promotions) &mdash; the link expires in 48 hours.
+          </p>
+        )}
       </motion.div>
     );
   }
@@ -297,6 +309,12 @@ export default function QuoteForm() {
           </motion.div>
         </AnimatePresence>
       </div>
+
+      {submitError && (
+        <p className="mt-4 rounded-lg bg-rpm-red/10 border border-rpm-red/30 px-4 py-3 text-sm text-rpm-red">
+          {submitError}
+        </p>
+      )}
 
       {/* Navigation */}
       <div className="mt-8 flex gap-4 justify-between">

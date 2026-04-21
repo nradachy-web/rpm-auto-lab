@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -13,46 +13,104 @@ import {
   Settings,
   LogOut,
   ChevronRight,
+  Shield,
 } from 'lucide-react';
+import { api } from '@/lib/api';
 
-const portalNav = [
+interface SessionUser {
+  id: string;
+  email: string;
+  name: string;
+  phone?: string;
+  role: 'customer' | 'admin';
+}
+
+const customerNav = [
   { href: '/portal/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/portal/vehicles', label: 'My Vehicles', icon: Car },
   { href: '/portal/jobs', label: 'My Jobs', icon: Wrench },
   { href: '/portal/quotes', label: 'Quotes', icon: FileText },
   { href: '/portal/settings', label: 'Settings', icon: Settings },
-];
+] as const;
 
-export default function PortalLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+const adminNav = [
+  { href: '/portal/admin', label: 'Admin', icon: Shield },
+  ...customerNav,
+] as const;
+
+// Path prefixes that don't require a session (set-password lives under /portal
+// because it needs to share the portal layout shell visually, but the user
+// isn't logged in until they submit).
+const PUBLIC_PORTAL_PATHS = ['/portal/set-password'];
+
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).slice(0, 2);
+  return parts.map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
+}
+
+export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [user, setUser] = useState<SessionUser | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const isPublic = PUBLIC_PORTAL_PATHS.some((p) => pathname?.startsWith(p));
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const res = await api.get<{ user: SessionUser | null }>('/api/auth/me');
+      if (cancelled) return;
+      setUser(res.data?.user ?? null);
+      setLoading(false);
+      if (!res.data?.user && !isPublic) {
+        router.replace('/login');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isPublic, router]);
+
+  const signOut = async () => {
+    await api.post('/api/auth/logout');
+    setUser(null);
+    router.replace('/login');
+  };
+
+  const nav = user?.role === 'admin' ? adminNav : customerNav;
+
+  // Gate admin pages — redirect a customer who guesses /portal/admin
+  useEffect(() => {
+    if (!loading && user && user.role !== 'admin' && pathname?.startsWith('/portal/admin')) {
+      router.replace('/portal/dashboard');
+    }
+  }, [loading, user, pathname, router]);
+
+  if (loading && !isPublic) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-rpm-black">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-rpm-gray border-t-rpm-red" />
+      </div>
+    );
+  }
+
+  if (isPublic && !user) {
+    // Render set-password (or other public portal routes) without the auth-gated chrome.
+    return <div className="min-h-screen bg-rpm-black">{children}</div>;
+  }
 
   return (
     <div className="flex min-h-screen bg-rpm-black">
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-rpm-charcoal border-r border-rpm-gray/50 fixed inset-y-0 left-0 z-40">
-        {/* Logo */}
-        <Link
-          href="/"
-          className="flex items-center gap-3 px-6 py-5 border-b border-rpm-gray/50"
-        >
-          <div className="w-8 h-8 rounded-lg bg-rpm-red flex items-center justify-center font-bold text-white text-sm">
-            R
-          </div>
-          <span className="text-rpm-white font-bold text-lg tracking-wide">
-            RPM Auto Lab
-          </span>
+        <Link href="/" className="flex items-center gap-3 px-6 py-5 border-b border-rpm-gray/50">
+          <div className="w-8 h-8 rounded-lg bg-rpm-red flex items-center justify-center font-bold text-white text-sm">R</div>
+          <span className="text-rpm-white font-bold text-lg tracking-wide">RPM Auto Lab</span>
         </Link>
 
-        {/* Nav Links */}
         <nav className="flex-1 px-3 py-4 space-y-1">
-          {portalNav.map((item) => {
-            const isActive =
-              pathname === item.href || pathname?.startsWith(item.href + '/');
+          {nav.map((item) => {
+            const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
             return (
               <Link
                 key={item.href}
@@ -66,30 +124,26 @@ export default function PortalLayout({
               >
                 <item.icon className="w-5 h-5" />
                 {item.label}
-                {isActive && (
-                  <ChevronRight className="w-4 h-4 ml-auto" />
-                )}
+                {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
               </Link>
             );
           })}
         </nav>
 
-        {/* User Section */}
         <div className="px-4 py-4 border-t border-rpm-gray/50">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-9 h-9 rounded-full bg-rpm-gray flex items-center justify-center text-rpm-white font-semibold text-sm">
-              MJ
+              {user ? initialsOf(user.name) : '?'}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-rpm-white truncate">
-                Marcus Johnson
-              </p>
-              <p className="text-xs text-rpm-silver truncate">
-                marcus.johnson@gmail.com
-              </p>
+              <p className="text-sm font-medium text-rpm-white truncate">{user?.name ?? '—'}</p>
+              <p className="text-xs text-rpm-silver truncate">{user?.email ?? ''}</p>
             </div>
           </div>
-          <button className="flex items-center gap-2 w-full px-3 py-2 text-sm text-rpm-silver hover:text-rpm-red transition-colors rounded-lg hover:bg-rpm-gray/30 cursor-pointer">
+          <button
+            onClick={signOut}
+            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-rpm-silver hover:text-rpm-red transition-colors rounded-lg hover:bg-rpm-gray/30 cursor-pointer"
+          >
             <LogOut className="w-4 h-4" />
             Sign Out
           </button>
@@ -99,12 +153,8 @@ export default function PortalLayout({
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-rpm-charcoal border-b border-rpm-gray/50 px-4 py-3 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-rpm-red flex items-center justify-center font-bold text-white text-xs">
-            R
-          </div>
-          <span className="text-rpm-white font-bold tracking-wide">
-            RPM Auto Lab
-          </span>
+          <div className="w-7 h-7 rounded-lg bg-rpm-red flex items-center justify-center font-bold text-white text-xs">R</div>
+          <span className="text-rpm-white font-bold tracking-wide">RPM Auto Lab</span>
         </Link>
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
@@ -121,7 +171,7 @@ export default function PortalLayout({
         </button>
       </div>
 
-      {/* Mobile Slide-out Menu */}
+      {/* Mobile Slide-out */}
       <AnimatePresence>
         {mobileOpen && (
           <>
@@ -140,23 +190,16 @@ export default function PortalLayout({
               className="lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-rpm-charcoal border-r border-rpm-gray/50 flex flex-col"
             >
               <div className="px-6 py-5 border-b border-rpm-gray/50 flex items-center justify-between">
-                <span className="text-rpm-white font-bold text-lg tracking-wide">
-                  Portal
-                </span>
-                <button
-                  onClick={() => setMobileOpen(false)}
-                  className="text-rpm-silver hover:text-rpm-white cursor-pointer"
-                >
+                <span className="text-rpm-white font-bold text-lg tracking-wide">Portal</span>
+                <button onClick={() => setMobileOpen(false)} className="text-rpm-silver hover:text-rpm-white cursor-pointer">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
               <nav className="flex-1 px-3 py-4 space-y-1">
-                {portalNav.map((item) => {
-                  const isActive =
-                    pathname === item.href ||
-                    pathname?.startsWith(item.href + '/');
+                {nav.map((item) => {
+                  const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
                   return (
                     <Link
                       key={item.href}
@@ -178,15 +221,16 @@ export default function PortalLayout({
               <div className="px-4 py-4 border-t border-rpm-gray/50">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-9 h-9 rounded-full bg-rpm-gray flex items-center justify-center text-rpm-white font-semibold text-sm">
-                    MJ
+                    {user ? initialsOf(user.name) : '?'}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-rpm-white truncate">
-                      Marcus Johnson
-                    </p>
+                    <p className="text-sm font-medium text-rpm-white truncate">{user?.name ?? '—'}</p>
                   </div>
                 </div>
-                <button className="flex items-center gap-2 w-full px-3 py-2 text-sm text-rpm-silver hover:text-rpm-red transition-colors rounded-lg hover:bg-rpm-gray/30 cursor-pointer">
+                <button
+                  onClick={signOut}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-rpm-silver hover:text-rpm-red transition-colors rounded-lg hover:bg-rpm-gray/30 cursor-pointer"
+                >
                   <LogOut className="w-4 h-4" />
                   Sign Out
                 </button>
@@ -199,9 +243,8 @@ export default function PortalLayout({
       {/* Mobile Bottom Tab Bar */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-rpm-charcoal border-t border-rpm-gray/50 px-2 py-1">
         <nav className="flex items-center justify-around">
-          {portalNav.slice(0, 4).map((item) => {
-            const isActive =
-              pathname === item.href || pathname?.startsWith(item.href + '/');
+          {nav.slice(0, 4).map((item) => {
+            const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
             return (
               <Link
                 key={item.href}

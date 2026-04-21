@@ -1,0 +1,38 @@
+import { z } from "zod";
+import { withCors, json } from "@/lib/cors";
+import { requireAdmin, AuthError } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+
+export const runtime = "nodejs";
+
+const schema = z.object({
+  status: z.enum(["submitted", "quoted", "approved", "converted", "declined"]).optional(),
+  quotedAmount: z.number().int().nonnegative().optional(),
+});
+
+export const PATCH = withCors(async (req) => {
+  try {
+    await requireAdmin();
+    const id = new URL(req.url).pathname.split("/").pop();
+    if (!id) return json({ error: "Missing quote id" }, { status: 400 });
+    let body: unknown;
+    try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, { status: 400 }); }
+    const parsed = schema.safeParse(body);
+    if (!parsed.success) return json({ error: "Validation failed", issues: parsed.error.issues }, { status: 400 });
+
+    const updated = await prisma.quote.update({
+      where: { id },
+      data: {
+        ...parsed.data,
+        respondedAt: parsed.data.quotedAmount !== undefined ? new Date() : undefined,
+      },
+      include: { user: true, vehicle: true },
+    });
+    return json({ quote: updated });
+  } catch (e) {
+    if (e instanceof AuthError) return json({ error: e.code }, { status: e.code === "UNAUTHENTICATED" ? 401 : 403 });
+    throw e;
+  }
+});
+
+export const OPTIONS = withCors(async () => new Response(null, { status: 204 }));
