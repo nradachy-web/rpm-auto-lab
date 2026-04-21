@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import Button from "@/components/ui/Button";
@@ -17,7 +17,19 @@ function strength(p: string) {
   return s;
 }
 
+// Next's static export needs useSearchParams callers wrapped in Suspense
+// so the prerender can bail out gracefully. Everything that touches
+// `useSearchParams` lives in the inner component; the default export is
+// just the Suspense shell.
 export default function SetPasswordPage() {
+  return (
+    <Suspense fallback={<div className="text-rpm-silver text-sm p-6">Loading…</div>}>
+      <SetPasswordForm />
+    </Suspense>
+  );
+}
+
+function SetPasswordForm() {
   const router = useRouter();
   const params = useSearchParams();
   const token = params.get("token") || "";
