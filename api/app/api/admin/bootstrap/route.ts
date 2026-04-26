@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 const schema = z.object({
   token: z.string().min(10),
   email: z.string().email(),
-  password: z.string().min(12),
+  password: z.string().min(4),
   name: z.string().min(1).max(120),
 });
 
