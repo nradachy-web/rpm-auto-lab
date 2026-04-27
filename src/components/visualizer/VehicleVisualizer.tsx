@@ -184,7 +184,7 @@ function getAzimuth(service: string, zone: string): number {
 }
 
 // ─── Main Visualizer ────────────────────────────────────────────────
-export default function VehicleVisualizer() {
+export default function VehicleVisualizer({ showMobileDrawer = true }: { showMobileDrawer?: boolean } = {}) {
   const [vehicleId, setVehicleId] = useState<string>(VEHICLES[0].id);
   const [activeServices, setActiveServices] = useState<Set<string>>(new Set());
   const [tintLevel, setTintLevel] = useState(35);
@@ -554,7 +554,7 @@ export default function VehicleVisualizer() {
       </div>
 
       {/* ── Mobile Bottom Drawer ─────────────────────────────────── */}
-      {isMobile && (
+      {isMobile && showMobileDrawer && (
         <MobileDrawer
           services={CONFIGURATOR_SERVICES}
           activeServices={activeServices}

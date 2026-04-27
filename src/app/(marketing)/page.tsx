@@ -11,7 +11,7 @@ export default function Home() {
       <Hero />
       <StatsBar />
       <ServicesPreview />
-      <VehicleVisualizer />
+      <VehicleVisualizer showMobileDrawer={false} />
       <WhyChooseUs />
       <CTABanner />
     </>
