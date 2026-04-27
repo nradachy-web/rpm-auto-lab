@@ -195,7 +195,7 @@ export default function VehicleVisualizer() {
   const [lastActiveService, setLastActiveService] = useState<string>("default");
   const [isSettled, setIsSettled] = useState(true);
   const [autoRotate, setAutoRotate] = useState(false);
-  const [mobileDrawerExpanded, setMobileDrawerExpanded] = useState(true);
+  const [mobileDrawerExpanded, setMobileDrawerExpanded] = useState(false);
 
   const isMobile = useIsMobile();
   const vehicle = useMemo(() => getVehicleById(vehicleId), [vehicleId]);
