@@ -7,6 +7,12 @@ import { SERVICES } from "@/lib/constants";
 import VehicleSearch from "./VehicleSearch";
 import Button from "@/components/ui/Button";
 import { api } from "@/lib/api";
+import {
+  sendWelcomeQuote,
+  sendAdminQuoteAlert,
+  CUSTOMER_PORTAL_URL,
+  SHOP_INBOX,
+} from "@/lib/email-client";
 
 interface VehicleInfo {
   year: number;
@@ -149,16 +155,47 @@ export default function QuoteForm() {
       },
       estimatedTotal,
     };
-    const res = await api.post<{ ok: boolean; quoteId: string; accountCreated: boolean }>(
-      "/api/quotes/submit",
-      payload
-    );
+    const res = await api.post<{
+      ok: boolean;
+      quoteId: string;
+      accountCreated: boolean;
+      setPasswordUrl?: string | null;
+    }>("/api/quotes/submit", payload);
     if (!res.ok || !res.data?.ok) {
       setSubmitError(res.error || "We couldn't submit your quote. Please try again or call us directly.");
       setSubmitting(false);
       return;
     }
     setAccountCreated(Boolean(res.data.accountCreated));
+
+    // Fire transactional emails from the browser. Web3Forms blocks server-side
+    // sends on the free plan, so all mail originates here.
+    const vehicleStr = [vehicle.year, vehicle.make, vehicle.model, vehicle.trim]
+      .filter(Boolean)
+      .join(" ");
+    const quoteSummary = `${vehicleStr}\nServices: ${selectedServices.join(", ")}\nEstimated: $${estimatedTotal.toLocaleString()}`;
+
+    const welcome = sendWelcomeQuote({
+      to: contact.email,
+      name: contact.name,
+      setPasswordUrl: res.data.setPasswordUrl ?? null,
+      quoteSummary,
+      portalUrl: CUSTOMER_PORTAL_URL,
+    }).catch((e) => console.error("[email] customer welcome failed:", e));
+
+    const alert = sendAdminQuoteAlert({
+      to: SHOP_INBOX,
+      customerName: contact.name,
+      customerEmail: contact.email,
+      customerPhone: contact.phone,
+      vehicle: vehicleStr,
+      services: selectedServices,
+      estimatedTotal,
+      notes: contact.notes || undefined,
+    }).catch((e) => console.error("[email] admin alert failed:", e));
+
+    await Promise.allSettled([welcome, alert]);
+
     setSubmitted(true);
     setSubmitting(false);
   };

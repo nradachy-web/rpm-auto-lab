@@ -2,7 +2,6 @@ import { z } from "zod";
 import { withCors, json } from "@/lib/cors";
 import { requireAdmin, AuthError } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { jobStatusBody, sendToAddress } from "@/lib/email";
 
 export const runtime = "nodejs";
 
@@ -10,9 +9,6 @@ const schema = z.object({
   status: z.enum(["scheduled", "in_progress", "completed", "picked_up", "cancelled"]),
   note: z.string().max(2000).optional(),
 });
-
-const PUBLIC_SITE = process.env.PUBLIC_ORIGIN ?? "https://nradachy-web.github.io";
-const PUBLIC_BASE = PUBLIC_SITE.endsWith("/") ? `${PUBLIC_SITE}rpm-auto-lab` : `${PUBLIC_SITE}/rpm-auto-lab`;
 
 export const PATCH = withCors(async (req) => {
   try {
@@ -61,24 +57,8 @@ export const PATCH = withCors(async (req) => {
       include: { user: true, vehicle: true, events: { orderBy: { at: "desc" } } },
     });
 
-    // Notify the customer by email.
-    try {
-      const v = updated.vehicle;
-      const vehicleStr = [v.year, v.make, v.model].join(" ");
-      await sendToAddress(updated.user.email, {
-        subject: `RPM Auto Lab — Job update (${statusLabel(status)})`,
-        message: jobStatusBody({
-          name: updated.user.name,
-          vehicle: vehicleStr,
-          newStatus: status,
-          note,
-          portalUrl: `${PUBLIC_BASE}/portal/jobs`,
-        }),
-      });
-    } catch (e) {
-      console.error("[admin/jobs/status] email failed:", e);
-    }
-
+    // Customer email is sent client-side from /portal/admin (Web3Forms blocks
+    // server-side calls on the free plan).
     return json({ job: updated });
   } catch (e) {
     if (e instanceof AuthError) return json({ error: e.code }, { status: e.code === "UNAUTHENTICATED" ? 401 : 403 });
@@ -87,11 +67,3 @@ export const PATCH = withCors(async (req) => {
 });
 
 export const OPTIONS = withCors(async () => new Response(null, { status: 204 }));
-
-function statusLabel(s: string): string {
-  switch (s) {
-    case "in_progress": return "In Progress";
-    case "picked_up": return "Picked Up";
-    default: return s.charAt(0).toUpperCase() + s.slice(1);
-  }
-}

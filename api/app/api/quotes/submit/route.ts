@@ -2,7 +2,6 @@ import { z } from "zod";
 import { withCors, json } from "@/lib/cors";
 import { prisma } from "@/lib/db";
 import { generateToken } from "@/lib/auth";
-import { newQuoteForShopBody, sendToAddress, welcomeQuoteBody } from "@/lib/email";
 
 export const runtime = "nodejs";
 
@@ -94,52 +93,14 @@ export const POST = withCors(async (req) => {
     },
   });
 
-  const vehicleStr = [vehicle.year, vehicle.make, vehicle.model, vehicle.trim].filter(Boolean).join(" ");
-  const servicesLine = services.join(", ");
-  const quoteSummary = `${vehicleStr}\nServices: ${servicesLine}\nEstimated: $${estimatedTotal.toLocaleString()}`;
-
-  // Fire-and-forget emails — if Web3Forms hiccups we don't want to lose the
-  // quote itself, but we DO want to log the failure.
-  try {
-    if (setPasswordUrl) {
-      await sendToAddress(contact.email, {
-        subject: "Your RPM Auto Lab quote request",
-        message: welcomeQuoteBody({
-          name: contact.name,
-          setPasswordUrl,
-          quoteSummary,
-        }),
-      });
-    } else {
-      await sendToAddress(contact.email, {
-        subject: "Quote received — RPM Auto Lab",
-        message: `Hi ${contact.name},\n\nWe received your quote request and will be in touch within 24 hours.\n\n${quoteSummary}\n\nTrack it in your portal: ${PUBLIC_SITE_BASE}/portal/dashboard\n\n— RPM Auto Lab`,
-      });
-    }
-  } catch (e) { console.error("[quotes/submit] customer email failed:", e); }
-
-  try {
-    const adminEmail = process.env.ADMIN_EMAIL;
-    if (adminEmail) {
-      await sendToAddress(adminEmail, {
-        subject: `New quote — ${contact.name} — ${vehicleStr}`,
-        message: newQuoteForShopBody({
-          customerName: contact.name,
-          customerEmail: contact.email,
-          customerPhone: contact.phone,
-          vehicle: vehicleStr,
-          services,
-          estimatedTotal,
-          notes: contact.notes,
-        }),
-      });
-    }
-  } catch (e) { console.error("[quotes/submit] admin email failed:", e); }
-
+  // Email sends happen on the client (browser) because Web3Forms blocks
+  // server-side calls on the free plan. We surface the set-password URL so
+  // the client can include it in the welcome email it fires.
   return json({
     ok: true,
     quoteId: quote.id,
     accountCreated: setPasswordUrl !== null,
+    setPasswordUrl,
   });
 });
 

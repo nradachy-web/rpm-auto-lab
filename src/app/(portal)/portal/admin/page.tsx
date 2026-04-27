@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { sendJobStatus, CUSTOMER_PORTAL_URL } from '@/lib/email-client';
 
 interface UserRef { id: string; email: string; name: string }
 interface Vehicle { id: string; year: number; make: string; model: string; trim?: string | null }
@@ -109,10 +110,25 @@ function JobCard({ job, onChange }: { job: Job; onChange: () => void }) {
   const current = JOB_FLOW.indexOf(job.status as Job['status']);
   const nextStatus = current >= 0 && current < JOB_FLOW.length - 1 ? JOB_FLOW[current + 1] : null;
 
+  const vehicleStr = [job.vehicle.year, job.vehicle.make, job.vehicle.model, job.vehicle.trim]
+    .filter(Boolean)
+    .join(' ');
+
+  const emailCustomer = (newStatus: string, noteText?: string) =>
+    sendJobStatus({
+      to: job.user.email,
+      name: job.user.name,
+      vehicle: vehicleStr,
+      newStatus,
+      note: noteText,
+      portalUrl: CUSTOMER_PORTAL_URL,
+    }).catch((e) => console.error('[email] job status failed:', e));
+
   const advance = async () => {
     if (!nextStatus) return;
     setBusy(true);
-    await api.patch(`/api/admin/jobs/${job.id}/status`, { status: nextStatus, note: note || undefined });
+    const res = await api.patch(`/api/admin/jobs/${job.id}/status`, { status: nextStatus, note: note || undefined });
+    if (res.ok) await emailCustomer(nextStatus, note || undefined);
     setBusy(false);
     setNote('');
     onChange();
@@ -121,7 +137,8 @@ function JobCard({ job, onChange }: { job: Job; onChange: () => void }) {
   const cancel = async () => {
     if (!window.confirm('Mark this job as cancelled?')) return;
     setBusy(true);
-    await api.patch(`/api/admin/jobs/${job.id}/status`, { status: 'cancelled', note: note || 'Cancelled' });
+    const res = await api.patch(`/api/admin/jobs/${job.id}/status`, { status: 'cancelled', note: note || 'Cancelled' });
+    if (res.ok) await emailCustomer('cancelled', note || 'Cancelled');
     setBusy(false);
     setNote('');
     onChange();
