@@ -139,6 +139,33 @@ export async function sendJobStatus(a: JobStatusArgs): Promise<void> {
   });
 }
 
+interface ReminderArgs {
+  to: string;
+  name: string;
+  vehicle: string;
+  type: "ceramic_refresh" | "ppf_check" | "tint_warranty" | "general_rebook" | "promotional";
+  customMessage?: string | null;
+  portalUrl: string;
+}
+
+export async function sendReminderEmail(a: ReminderArgs): Promise<void> {
+  const subjectMap: Record<ReminderArgs["type"], string> = {
+    ceramic_refresh: "Time for a ceramic refresh on your " + a.vehicle,
+    ppf_check: "PPF wash & inspection — your " + a.vehicle,
+    tint_warranty: "Window tint warranty check — your " + a.vehicle,
+    general_rebook: "We miss your " + a.vehicle + " — book your next visit",
+    promotional: "A note from RPM Auto Lab",
+  };
+  const bodyMap: Record<ReminderArgs["type"], string> = {
+    ceramic_refresh: `Hi ${a.name},\n\nIt's been about six months since we coated your ${a.vehicle}. A maintenance refresh keeps the gloss strong and the warranty current.\n\nReply to this email or book a visit at: ${a.portalUrl}\n\nRPM Auto Lab`,
+    ppf_check: `Hi ${a.name},\n\nIt's been about a month since we installed PPF on your ${a.vehicle}. Bring it in for a complimentary wash and edge inspection.\n\nBook a visit: ${a.portalUrl}\n\nRPM Auto Lab`,
+    tint_warranty: `Hi ${a.name},\n\nQuick reminder that your window tint on the ${a.vehicle} is covered by warranty. If you've noticed any bubbling or peeling, let us know.\n\nReply to this email or open your portal: ${a.portalUrl}\n\nRPM Auto Lab`,
+    general_rebook: `Hi ${a.name},\n\nIt's been a while since your last service on the ${a.vehicle}. We'd love to have you back. Want a wash, decon, or a top-up?\n\nBook a visit: ${a.portalUrl}\n\nRPM Auto Lab`,
+    promotional: `Hi ${a.name},\n\n${a.customMessage ?? "We've got a new promotion running this month."}\n\nBook a visit: ${a.portalUrl}\n\nRPM Auto Lab`,
+  };
+  await send(a.to, { subject: subjectMap[a.type], message: bodyMap[a.type] });
+}
+
 // Where the customer portal lives. Used in email links.
 export const CUSTOMER_PORTAL_URL = "https://nradachy-web.github.io/rpm-auto-lab/portal/dashboard";
 

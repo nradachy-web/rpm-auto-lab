@@ -28,6 +28,7 @@ export const GET = withCors(async () => {
           user: { select: { id: true, email: true, name: true } },
           vehicle: true,
           events: { orderBy: { at: "desc" }, take: 1 },
+          photos: { orderBy: { uploadedAt: "asc" } },
         },
       }),
     ]);

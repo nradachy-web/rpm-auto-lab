@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import PhotoGallery, { type JobPhoto } from '@/components/portal/PhotoGallery';
 
-interface Vehicle { id: string; year: number; make: string; model: string; trim?: string | null }
+interface Vehicle { id: string; year: number; make: string; model: string; trim?: string | null; color?: string | null }
 interface JobEvent { id: string; toStatus: string; note?: string | null; at: string }
 interface Job {
   id: string;
@@ -12,6 +14,7 @@ interface Job {
   status: 'scheduled' | 'in_progress' | 'completed' | 'picked_up' | 'cancelled';
   vehicle: Vehicle;
   events: JobEvent[];
+  photos: JobPhoto[];
   scheduledAt?: string | null;
   startedAt?: string | null;
   completedAt?: string | null;
@@ -32,10 +35,28 @@ const label = (s: string) => {
 };
 
 export default function JobsPage() {
+  const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('all');
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [rebookingId, setRebookingId] = useState<string | null>(null);
+
+  const rebook = async (job: Job) => {
+    if (!window.confirm(`Book another ${job.services.join(' + ')} for your ${job.vehicle.year} ${job.vehicle.make} ${job.vehicle.model}?`)) return;
+    setRebookingId(job.id);
+    const res = await api.post<{ ok: boolean; quoteId: string }>('/api/portal/quotes/rebook', {
+      jobId: job.id,
+      vehicleId: job.vehicle.id,
+      services: job.services,
+    });
+    setRebookingId(null);
+    if (!res.ok) {
+      alert(res.error || 'Could not create new quote');
+      return;
+    }
+    router.push('/portal/quotes');
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -150,6 +171,27 @@ export default function JobsPage() {
                   </div>
                 )}
 
+                {(job.status === 'completed' || job.status === 'picked_up') && (
+                  <div className="mt-3">
+                    <button
+                      onClick={() => rebook(job)}
+                      disabled={rebookingId === job.id}
+                      className="px-3 py-2 rounded-lg bg-rpm-red text-white text-sm font-bold hover:bg-rpm-red-dark disabled:opacity-50"
+                    >
+                      {rebookingId === job.id ? 'Submitting…' : 'Book again'}
+                    </button>
+                  </div>
+                )}
+
+                {job.photos.length > 0 && (
+                  <div className="mt-4">
+                    <h4 className="text-xs uppercase tracking-wider text-rpm-silver mb-2">
+                      Photos ({job.photos.length})
+                    </h4>
+                    <PhotoGallery photos={job.photos} />
+                  </div>
+                )}
+
                 {job.events.length > 0 && (
                   <details className="mt-3 text-xs text-rpm-silver">
                     <summary className="cursor-pointer hover:text-rpm-white">History ({job.events.length})</summary>
@@ -159,7 +201,7 @@ export default function JobsPage() {
                           <span className="text-rpm-red">•</span>
                           <span>{label(e.toStatus)}</span>
                           <span className="text-rpm-silver/60">— {new Date(e.at).toLocaleString()}</span>
-                          {e.note && <span className="text-rpm-silver/80 italic">"{e.note}"</span>}
+                          {e.note && <span className="text-rpm-silver/80 italic">&quot;{e.note}&quot;</span>}
                         </li>
                       ))}
                     </ul>

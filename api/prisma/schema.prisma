@@ -31,6 +31,20 @@ enum JobStatus {
   cancelled
 }
 
+enum PhotoStage {
+  before
+  in_progress
+  after
+}
+
+enum ReminderType {
+  ceramic_refresh    // ~180 days after ceramic coating job
+  ppf_check          // ~30 days after PPF install
+  tint_warranty      // ~90 days after tint
+  general_rebook     // ~90 days after any completed service
+  promotional        // ad-hoc shop campaigns
+}
+
 model User {
   id                 String    @id @default(cuid())
   email              String    @unique
@@ -55,6 +69,7 @@ model User {
   vehicles           Vehicle[]
   quotes             Quote[]
   jobs               Job[]
+  reminders          ScheduledReminder[]
 
   @@index([role])
 }
@@ -72,6 +87,7 @@ model Vehicle {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   quotes    Quote[]
   jobs      Job[]
+  reminders ScheduledReminder[]
 
   @@index([userId])
 }
@@ -84,9 +100,15 @@ model Quote {
   estimatedTotal Int         // stored in whole dollars
   notes          String?
   status         QuoteStatus @default(submitted)
-  quotedAmount   Int?        // null until shop responds
+  quotedAmount   Int?        // null until shop responds (whole dollars)
   submittedAt    DateTime    @default(now())
   respondedAt    DateTime?
+
+  // Stripe deposit
+  depositAmount           Int?       // in cents
+  stripeCheckoutSessionId String?
+  stripePaymentLinkUrl    String?
+  depositPaidAt           DateTime?
 
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   vehicle   Vehicle    @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
@@ -117,9 +139,12 @@ model Job {
   quote        Quote?            @relation(fields: [quoteId], references: [id], onDelete: SetNull)
   vehicle      Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
   events       JobStatusEvent[]
+  photos       JobPhoto[]
+  reminders    ScheduledReminder[]
 
   @@index([userId])
   @@index([status])
+  @@index([scheduledAt])
 }
 
 model JobStatusEvent {
@@ -133,4 +158,39 @@ model JobStatusEvent {
   job       Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@index([jobId])
+}
+
+model JobPhoto {
+  id          String     @id @default(cuid())
+  jobId       String
+  url         String     // public Vercel Blob URL
+  pathname    String     // blob pathname, used for delete
+  caption     String?
+  stage       PhotoStage @default(in_progress)
+  uploadedAt  DateTime   @default(now())
+  uploadedBy  String?    // admin user id (free-text, not enforced)
+
+  job         Job        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+}
+
+model ScheduledReminder {
+  id           String        @id @default(cuid())
+  userId       String
+  jobId        String?
+  vehicleId    String?
+  type         ReminderType
+  dueAt        DateTime      // when this should fire to customer
+  sentAt       DateTime?     // null until delivered
+  cancelledAt  DateTime?     // shop-side dismiss without sending
+  customMessage String?      // override default copy for promotional sends
+  createdAt    DateTime      @default(now())
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job          Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  vehicle      Vehicle?  @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([dueAt, sentAt, cancelledAt])
 }

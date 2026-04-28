@@ -11,6 +11,13 @@ export const GET = withCors(async () => {
   const vehicles = await prisma.vehicle.findMany({
     where: { userId: user.id },
     orderBy: { createdAt: "desc" },
+    include: {
+      jobs: {
+        orderBy: { completedAt: "desc" },
+        include: { photos: { orderBy: { uploadedAt: "asc" } } },
+      },
+      quotes: { orderBy: { submittedAt: "desc" } },
+    },
   });
   return json({ vehicles });
 });

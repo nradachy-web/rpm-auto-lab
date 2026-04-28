@@ -10,7 +10,12 @@ export const GET = withCors(async () => {
 
   const jobs = await prisma.job.findMany({
     where: { userId: user.id },
-    include: { vehicle: true, events: { orderBy: { at: "desc" } }, quote: true },
+    include: {
+      vehicle: true,
+      events: { orderBy: { at: "desc" } },
+      quote: true,
+      photos: { orderBy: { uploadedAt: "asc" } },
+    },
     orderBy: { updatedAt: "desc" },
   });
   return json({ jobs });

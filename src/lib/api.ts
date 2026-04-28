@@ -19,13 +19,16 @@ export async function apiFetch<T = unknown>(
   init: RequestInit = {}
 ): Promise<ApiResult<T>> {
   const url = `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
+  // Don't override Content-Type when sending FormData — the browser sets the
+  // multipart boundary header for us.
+  const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
   let res: Response;
   try {
     res = await fetch(url, {
       ...init,
       credentials: "include",
       headers: {
-        "Content-Type": "application/json",
+        ...(isFormData ? {} : { "Content-Type": "application/json" }),
         ...(init.headers || {}),
       },
     });
@@ -51,7 +54,10 @@ export async function apiFetch<T = unknown>(
 export const api = {
   get: <T = unknown>(path: string) => apiFetch<T>(path, { method: "GET" }),
   post: <T = unknown>(path: string, body?: unknown) =>
-    apiFetch<T>(path, { method: "POST", body: body ? JSON.stringify(body) : undefined }),
+    apiFetch<T>(path, {
+      method: "POST",
+      body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
+    }),
   patch: <T = unknown>(path: string, body?: unknown) =>
     apiFetch<T>(path, { method: "PATCH", body: body ? JSON.stringify(body) : undefined }),
   delete: <T = unknown>(path: string) => apiFetch<T>(path, { method: "DELETE" }),

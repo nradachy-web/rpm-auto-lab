@@ -3,7 +3,18 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { sendJobStatus, CUSTOMER_PORTAL_URL } from '@/lib/email-client';
+import { sendJobStatus, sendReminderEmail, CUSTOMER_PORTAL_URL } from '@/lib/email-client';
+import PhotoGallery, { type JobPhoto } from '@/components/portal/PhotoGallery';
+import JobPhotoUploader from '@/components/portal/JobPhotoUploader';
+
+interface PendingReminder {
+  id: string;
+  type: 'ceramic_refresh' | 'ppf_check' | 'tint_warranty' | 'general_rebook' | 'promotional';
+  dueAt: string;
+  customMessage?: string | null;
+  user: { id: string; email: string; name: string };
+  vehicle?: { id: string; year: number; make: string; model: string; trim?: string | null } | null;
+}
 
 interface UserRef { id: string; email: string; name: string }
 interface Vehicle { id: string; year: number; make: string; model: string; trim?: string | null }
@@ -18,6 +29,9 @@ interface Quote {
   submittedAt: string;
   user: UserRef;
   vehicle: Vehicle;
+  depositAmount?: number | null;
+  stripePaymentLinkUrl?: string | null;
+  depositPaidAt?: string | null;
 }
 interface Job {
   id: string;
@@ -27,8 +41,10 @@ interface Job {
   user: UserRef;
   vehicle: Vehicle;
   events: JobEvent[];
+  photos: JobPhoto[];
   adminNote?: string | null;
   quoteId?: string | null;
+  scheduledAt?: string | null;
 }
 
 interface Overview { customers: Customer[]; quotes: Quote[]; jobs: Job[] }
@@ -86,10 +102,130 @@ export default function AdminPage() {
         ))}
       </div>
 
+      <RemindersPanel />
+
       {tab === 'jobs' && <JobsTab jobs={data.jobs} onChange={load} />}
       {tab === 'quotes' && <QuotesTab quotes={data.quotes} customers={data.customers} onChange={load} />}
       {tab === 'customers' && <CustomersTab customers={data.customers} />}
     </div>
+  );
+}
+
+function RemindersPanel() {
+  const [reminders, setReminders] = useState<PendingReminder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const res = await api.get<{ reminders: PendingReminder[] }>('/api/admin/reminders/pending');
+    if (res.ok) setReminders(res.data?.reminders ?? []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const send = useCallback(
+    async (r: PendingReminder) => {
+      setBusyId(r.id);
+      const veh = r.vehicle
+        ? [r.vehicle.year, r.vehicle.make, r.vehicle.model].filter(Boolean).join(' ')
+        : 'your vehicle';
+      try {
+        await sendReminderEmail({
+          to: r.user.email,
+          name: r.user.name,
+          vehicle: veh,
+          type: r.type,
+          customMessage: r.customMessage,
+          portalUrl: CUSTOMER_PORTAL_URL,
+        });
+        await api.patch(`/api/admin/reminders/${r.id}`, { action: 'sent' });
+      } catch (e) {
+        alert(`Send failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+      setBusyId(null);
+      load();
+    },
+    [load]
+  );
+
+  const cancel = async (r: PendingReminder) => {
+    setBusyId(r.id);
+    await api.patch(`/api/admin/reminders/${r.id}`, { action: 'cancel' });
+    setBusyId(null);
+    load();
+  };
+
+  const sendAll = async () => {
+    if (!window.confirm(`Send all ${reminders.length} pending reminders?`)) return;
+    for (const r of reminders) {
+      await send(r);
+    }
+  };
+
+  if (loading || reminders.length === 0) return null;
+
+  const labelMap: Record<PendingReminder['type'], string> = {
+    ceramic_refresh: 'Ceramic refresh',
+    ppf_check: 'PPF check',
+    tint_warranty: 'Tint warranty',
+    general_rebook: 'Rebook nudge',
+    promotional: 'Promotional',
+  };
+
+  return (
+    <section className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+      <header className="flex items-center justify-between mb-3">
+        <div>
+          <h3 className="text-sm font-bold text-amber-400 uppercase tracking-wider">
+            Pending reminders ({reminders.length})
+          </h3>
+          <p className="text-xs text-rpm-silver mt-0.5">
+            These follow-ups are due. Send them now, or cancel any you want to skip.
+          </p>
+        </div>
+        <button
+          onClick={sendAll}
+          className="px-3 py-2 rounded-lg bg-amber-500 text-rpm-black text-sm font-bold hover:bg-amber-400"
+        >
+          Send all
+        </button>
+      </header>
+      <ul className="space-y-1.5">
+        {reminders.map((r) => (
+          <li
+            key={r.id}
+            className="flex items-center justify-between gap-3 rounded-lg bg-rpm-charcoal/60 border border-rpm-gray/40 px-3 py-2 text-sm"
+          >
+            <div className="min-w-0 flex-1">
+              <div className="text-rpm-white font-semibold truncate">
+                {r.user.name} — {labelMap[r.type]}
+              </div>
+              <div className="text-xs text-rpm-silver/80 truncate">
+                {r.vehicle ? `${r.vehicle.year} ${r.vehicle.make} ${r.vehicle.model}` : ''} · due {new Date(r.dueAt).toLocaleDateString()}
+              </div>
+            </div>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => send(r)}
+                disabled={busyId === r.id}
+                className="px-2.5 py-1 rounded-md bg-rpm-red text-white text-xs font-bold hover:bg-rpm-red-dark disabled:opacity-50"
+              >
+                {busyId === r.id ? '…' : 'Send'}
+              </button>
+              <button
+                onClick={() => cancel(r)}
+                disabled={busyId === r.id}
+                className="px-2.5 py-1 rounded-md border border-rpm-gray text-xs text-rpm-silver hover:text-rpm-red hover:border-rpm-red disabled:opacity-50"
+              >
+                Skip
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -188,6 +324,19 @@ function JobCard({ job, onChange }: { job: Job; onChange: () => void }) {
           </button>
         </div>
       )}
+
+      <div className="mt-4 space-y-3">
+        <JobPhotoUploader jobId={job.id} onUploaded={onChange} />
+        {job.photos.length > 0 && (
+          <PhotoGallery
+            photos={job.photos}
+            onDelete={async (pid) => {
+              await api.delete(`/api/admin/jobs/${job.id}/photos/${pid}`);
+              onChange();
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -276,6 +425,58 @@ function QuoteCard({ quote, onChange }: { quote: Quote; customers: Customer[]; o
           >
             Convert to job
           </button>
+        </div>
+      )}
+
+      {quote.quotedAmount && (
+        <div className="mt-3 flex items-center gap-2 flex-wrap">
+          {!quote.stripePaymentLinkUrl ? (
+            <button
+              onClick={async () => {
+                setBusy(true);
+                const res = await api.post<{ paymentLinkUrl: string }>(`/api/admin/quotes/${quote.id}/payment-link`, {});
+                setBusy(false);
+                if (!res.ok) {
+                  alert(res.error || 'Could not generate payment link');
+                  return;
+                }
+                onChange();
+              }}
+              disabled={busy}
+              className="px-3 py-2 rounded-lg border border-emerald-500/40 text-sm text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50"
+            >
+              Generate deposit link (25%)
+            </button>
+          ) : (
+            <>
+              <a
+                href={quote.stripePaymentLinkUrl}
+                target="_blank"
+                rel="noopener"
+                className="text-xs text-rpm-silver hover:text-rpm-white truncate max-w-[200px]"
+              >
+                {quote.stripePaymentLinkUrl}
+              </a>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(quote.stripePaymentLinkUrl!);
+                  alert('Link copied');
+                }}
+                className="px-2 py-1 rounded-md border border-rpm-gray text-xs text-rpm-silver hover:text-rpm-white"
+              >
+                Copy
+              </button>
+              {quote.depositPaidAt ? (
+                <span className="px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold uppercase tracking-wider">
+                  Paid {new Date(quote.depositPaidAt).toLocaleDateString()}
+                </span>
+              ) : (
+                <span className="px-2 py-1 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[10px] font-bold uppercase tracking-wider">
+                  Awaiting deposit
+                </span>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>

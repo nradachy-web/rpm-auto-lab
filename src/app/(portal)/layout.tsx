@@ -14,6 +14,7 @@ import {
   LogOut,
   ChevronRight,
   Shield,
+  Calendar,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 
@@ -35,6 +36,7 @@ const customerNav = [
 
 const adminNav = [
   { href: '/portal/admin', label: 'Admin', icon: Shield },
+  { href: '/portal/admin/schedule', label: 'Schedule', icon: Calendar },
   ...customerNav,
 ] as const;
 

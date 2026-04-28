@@ -16,6 +16,9 @@ interface Quote {
   respondedAt?: string | null;
   vehicle: Vehicle;
   notes?: string | null;
+  depositAmount?: number | null;
+  stripePaymentLinkUrl?: string | null;
+  depositPaidAt?: string | null;
 }
 
 const label = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -96,6 +99,21 @@ export default function QuotesPage() {
               </div>
               {q.notes && (
                 <p className="mt-3 text-sm text-rpm-silver italic">{q.notes}</p>
+              )}
+              {q.stripePaymentLinkUrl && !q.depositPaidAt && (
+                <a
+                  href={q.stripePaymentLinkUrl}
+                  target="_blank"
+                  rel="noopener"
+                  className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-rpm-red text-white text-sm font-bold hover:bg-rpm-red-dark"
+                >
+                  Pay deposit{q.depositAmount ? ` — $${(q.depositAmount / 100).toFixed(2)}` : ''}
+                </a>
+              )}
+              {q.depositPaidAt && (
+                <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-bold uppercase tracking-wider">
+                  Deposit paid · {new Date(q.depositPaidAt).toLocaleDateString()}
+                </div>
               )}
             </div>
           ))}

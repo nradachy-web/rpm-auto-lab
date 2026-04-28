@@ -2,6 +2,7 @@ import { z } from "zod";
 import { withCors, json } from "@/lib/cors";
 import { requireAdmin, AuthError } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { rulesForServices } from "@/lib/reminders";
 
 export const runtime = "nodejs";
 
@@ -56,6 +57,24 @@ export const PATCH = withCors(async (req) => {
       data: updateData,
       include: { user: true, vehicle: true, events: { orderBy: { at: "desc" } } },
     });
+
+    // When a job transitions to completed for the first time, queue
+    // follow-up reminders (e.g. ceramic refresh at +180d). Skip if the job
+    // already had completedAt (idempotent on re-clicks).
+    if (status === "completed" && !existing.completedAt) {
+      const rules = rulesForServices(updated.services);
+      const now = Date.now();
+      await prisma.scheduledReminder.createMany({
+        data: rules.map((r) => ({
+          userId: updated.userId,
+          jobId: updated.id,
+          vehicleId: updated.vehicleId,
+          type: r.type,
+          dueAt: new Date(now + r.daysOut * 24 * 60 * 60 * 1000),
+        })),
+        skipDuplicates: true,
+      });
+    }
 
     // Customer email is sent client-side from /portal/admin (Web3Forms blocks
     // server-side calls on the free plan).
