@@ -3,6 +3,10 @@ import { withCors, json } from "@/lib/cors";
 import { requireAdmin, AuthError } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { rulesForServices } from "@/lib/reminders";
+import { sendSms, SMS_TEMPLATES } from "@/lib/twilio";
+
+const PUBLIC_SITE = process.env.PUBLIC_ORIGIN ?? "https://nradachy-web.github.io";
+const PUBLIC_BASE = PUBLIC_SITE.endsWith("/") ? `${PUBLIC_SITE}rpm-auto-lab` : `${PUBLIC_SITE}/rpm-auto-lab`;
 
 export const runtime = "nodejs";
 
@@ -76,8 +80,41 @@ export const PATCH = withCors(async (req) => {
       });
     }
 
-    // Customer email is sent client-side from /portal/admin (Web3Forms blocks
-    // server-side calls on the free plan).
+    // On pickup, queue a review request +1 day.
+    if (status === "picked_up" && !existing.pickedUpAt) {
+      await prisma.scheduledReminder.create({
+        data: {
+          userId: updated.userId,
+          jobId: updated.id,
+          vehicleId: updated.vehicleId,
+          type: "review_request",
+          dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        },
+      });
+      await prisma.reviewRequest.create({
+        data: {
+          userId: updated.userId,
+          jobId: updated.id,
+          vehicleId: updated.vehicleId,
+        },
+      });
+    }
+
+    // SMS is sent server-side because Twilio works server-to-server. Email
+    // is fired from the admin browser via Web3Forms.
+    if (updated.user.smsConsent && updated.user.phone) {
+      const veh = [updated.vehicle.year, updated.vehicle.make, updated.vehicle.model].join(" ");
+      sendSms(
+        updated.user.phone,
+        SMS_TEMPLATES.jobStatus({
+          name: updated.user.name,
+          vehicle: veh,
+          newStatus: status,
+          portalUrl: `${PUBLIC_BASE}/portal/jobs`,
+        })
+      ).catch((e) => console.error("[twilio] sms failed:", e));
+    }
+
     return json({ job: updated });
   } catch (e) {
     if (e instanceof AuthError) return json({ error: e.code }, { status: e.code === "UNAUTHENTICATED" ? 401 : 403 });

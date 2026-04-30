@@ -10,16 +10,19 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ───────────── Enums ─────────────
+
 enum Role {
   customer
   admin
+  technician
 }
 
 enum QuoteStatus {
-  submitted        // customer sent in a request, not yet responded to
-  quoted           // shop sent a number back
-  approved         // customer accepted
-  converted        // became a scheduled job
+  submitted
+  quoted
+  approved
+  converted
   declined
 }
 
@@ -38,28 +41,110 @@ enum PhotoStage {
 }
 
 enum ReminderType {
-  ceramic_refresh    // ~180 days after ceramic coating job
-  ppf_check          // ~30 days after PPF install
-  tint_warranty      // ~90 days after tint
-  general_rebook     // ~90 days after any completed service
-  promotional        // ad-hoc shop campaigns
+  ceramic_refresh
+  ppf_check
+  tint_warranty
+  general_rebook
+  promotional
+  review_request
 }
+
+enum VehicleSizeTier {
+  compact
+  sedan
+  suv
+  truck
+  oversize
+}
+
+enum InvoiceStatus {
+  draft
+  sent
+  partial
+  paid
+  void
+  refunded
+}
+
+enum PaymentMethod {
+  cash
+  card_in_person
+  stripe_checkout
+  stripe_terminal
+  ach
+  check
+  other
+}
+
+enum MessageSender {
+  customer
+  admin
+  system
+}
+
+enum DocumentKind {
+  invoice_receipt
+  warranty_ceramic
+  warranty_ppf
+  warranty_tint
+  service_waiver
+  other
+}
+
+enum NotificationChannel {
+  email
+  sms
+  push
+}
+
+enum AdminNotifKind {
+  new_quote
+  new_payment
+  new_message
+  inventory_low
+  review_received
+  booking_request
+  other
+}
+
+enum CampaignStatus {
+  draft
+  sending
+  sent
+  cancelled
+}
+
+enum InventoryReason {
+  job_use
+  restock
+  adjustment
+  loss
+  return_to_vendor
+}
+
+// ───────────── Core models ─────────────
 
 model User {
   id                 String    @id @default(cuid())
   email              String    @unique
-  passwordHash       String?   // null when account is created via quote-submit and password hasn't been set yet
+  passwordHash       String?
   name               String
   phone              String?
   role               Role      @default(customer)
   emailVerifiedAt    DateTime?
 
-  // One-time token for the "set your password" magic link that ships with
-  // the welcome email after a quote submission.
+  // Communication consent
+  smsConsent         Boolean   @default(false)
+  pushConsent        Boolean   @default(false)
+
+  // Referral / loyalty
+  referralCode       String?   @unique
+  referredById       String?
+  loyaltyPoints      Int       @default(0)
+
   setPasswordToken        String?   @unique
   setPasswordTokenExpiry  DateTime?
 
-  // Password reset token (if/when we add self-serve reset).
   resetToken         String?   @unique
   resetTokenExpiry   DateTime?
 
@@ -70,127 +155,554 @@ model User {
   quotes             Quote[]
   jobs               Job[]
   reminders          ScheduledReminder[]
+  invoices           Invoice[]
+  payments           Payment[]
+  threadAsCustomer   MessageThread? @relation("ThreadCustomer")
+  loyaltyLedger      LoyaltyLedger[]
+  pushSubscriptions  PushSubscription[]
+  reviews            Review[]
+  reviewRequests     ReviewRequest[]
+  referredBy         User?      @relation("UserReferral", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals          User[]     @relation("UserReferral")
+  technician         Technician?
 
   @@index([role])
+  @@index([referralCode])
 }
 
 model Vehicle {
-  id        String   @id @default(cuid())
-  userId    String
-  year      Int
-  make      String
-  model     String
-  trim      String?
-  color     String?
-  createdAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  userId        String
+  year          Int
+  make          String
+  model         String
+  trim          String?
+  color         String?
+  licensePlate  String?
+  vin           String?
+  sizeTier      VehicleSizeTier?
+  notes         String?
+  createdAt     DateTime @default(now())
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   quotes    Quote[]
   jobs      Job[]
   reminders ScheduledReminder[]
+  reviewRequests ReviewRequest[]
 
   @@index([userId])
+  @@index([licensePlate])
 }
 
 model Quote {
   id             String      @id @default(cuid())
   userId         String
   vehicleId      String
-  services       String[]    // service IDs like "ceramic-coating", "ppf"
-  estimatedTotal Int         // stored in whole dollars
+  services       String[]
+  estimatedTotal Int
   notes          String?
   status         QuoteStatus @default(submitted)
-  quotedAmount   Int?        // null until shop responds (whole dollars)
+  quotedAmount   Int?
   submittedAt    DateTime    @default(now())
   respondedAt    DateTime?
 
+  jobTemplateId  String?
+
   // Stripe deposit
-  depositAmount           Int?       // in cents
+  depositAmount           Int?
   stripeCheckoutSessionId String?
   stripePaymentLinkUrl    String?
   depositPaidAt           DateTime?
 
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  vehicle   Vehicle    @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  jobs      Job[]
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehicle     Vehicle      @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  jobs        Job[]
+  jobTemplate JobTemplate? @relation(fields: [jobTemplateId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([status])
 }
 
 model Job {
-  id           String     @id @default(cuid())
-  userId       String
-  quoteId      String?
-  vehicleId    String
-  services     String[]
-  status       JobStatus  @default(scheduled)
-  adminNote    String?
+  id                 String     @id @default(cuid())
+  userId             String
+  quoteId            String?
+  vehicleId          String
+  services           String[]
+  status             JobStatus  @default(scheduled)
+  adminNote          String?
 
-  // Timeline
-  scheduledAt  DateTime?
-  startedAt    DateTime?
-  completedAt  DateTime?
-  pickedUpAt   DateTime?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  // Scheduling
+  scheduledAt        DateTime?  // legacy alias; equals scheduledStartAt for new rows
+  scheduledStartAt   DateTime?
+  scheduledEndAt     DateTime?
+  durationMinutes    Int?
+  bayId              String?
+  technicianId       String?
 
-  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  quote        Quote?            @relation(fields: [quoteId], references: [id], onDelete: SetNull)
-  vehicle      Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  events       JobStatusEvent[]
-  photos       JobPhoto[]
-  reminders    ScheduledReminder[]
+  // Lifecycle
+  startedAt          DateTime?
+  completedAt        DateTime?
+  pickedUpAt         DateTime?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  // Wiring
+  invoiceId          String?    @unique
+  jobTemplateId      String?
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quote           Quote?            @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  vehicle         Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  bay             Bay?              @relation(fields: [bayId], references: [id], onDelete: SetNull)
+  technician      Technician?       @relation(fields: [technicianId], references: [id], onDelete: SetNull)
+  invoice         Invoice?          @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  jobTemplate     JobTemplate?      @relation(fields: [jobTemplateId], references: [id], onDelete: SetNull)
+  events          JobStatusEvent[]
+  photos          JobPhoto[]
+  reminders       ScheduledReminder[]
+  inventoryUsage  InventoryTransaction[]
+  reviewRequests  ReviewRequest[]
+  reviews         Review[]
 
   @@index([userId])
   @@index([status])
-  @@index([scheduledAt])
+  @@index([scheduledStartAt])
+  @@index([bayId, scheduledStartAt])
+  @@index([technicianId, scheduledStartAt])
 }
 
 model JobStatusEvent {
-  id        String    @id @default(cuid())
-  jobId     String
+  id         String     @id @default(cuid())
+  jobId      String
   fromStatus JobStatus?
   toStatus   JobStatus
   note       String?
-  at         DateTime  @default(now())
+  at         DateTime   @default(now())
 
-  job       Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job        Job        @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@index([jobId])
 }
 
 model JobPhoto {
-  id          String     @id @default(cuid())
-  jobId       String
-  url         String     // public Vercel Blob URL
-  pathname    String     // blob pathname, used for delete
-  caption     String?
-  stage       PhotoStage @default(in_progress)
-  uploadedAt  DateTime   @default(now())
-  uploadedBy  String?    // admin user id (free-text, not enforced)
+  id         String     @id @default(cuid())
+  jobId      String
+  url        String
+  pathname   String
+  caption    String?
+  stage      PhotoStage @default(in_progress)
+  uploadedAt DateTime   @default(now())
+  uploadedBy String?
 
-  job         Job        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job        Job        @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@index([jobId])
 }
 
 model ScheduledReminder {
-  id           String        @id @default(cuid())
-  userId       String
-  jobId        String?
-  vehicleId    String?
-  type         ReminderType
-  dueAt        DateTime      // when this should fire to customer
-  sentAt       DateTime?     // null until delivered
-  cancelledAt  DateTime?     // shop-side dismiss without sending
-  customMessage String?      // override default copy for promotional sends
-  createdAt    DateTime      @default(now())
+  id            String       @id @default(cuid())
+  userId        String
+  jobId         String?
+  vehicleId     String?
+  type          ReminderType
+  dueAt         DateTime
+  sentAt        DateTime?
+  cancelledAt   DateTime?
+  customMessage String?
+  createdAt     DateTime     @default(now())
 
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  job          Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
-  vehicle      Vehicle?  @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job           Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  vehicle       Vehicle?  @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([dueAt, sentAt, cancelledAt])
+}
+
+// ───────────── Service catalog ─────────────
+
+model ServiceCategory {
+  id          String           @id @default(cuid())
+  slug        String           @unique
+  name        String
+  description String?
+  sortOrder   Int              @default(0)
+  active      Boolean          @default(true)
+  packages    ServicePackage[]
+}
+
+model ServicePackage {
+  id              String              @id @default(cuid())
+  slug            String              @unique
+  name            String
+  shortDesc       String?
+  longDesc        String?
+  categoryId      String
+  basePrice       Int                 // whole dollars
+  defaultDurationMinutes Int          @default(120)
+  active          Boolean             @default(true)
+  sortOrder       Int                 @default(0)
+
+  category        ServiceCategory     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  pricing         ServicePricing[]
+  templateLinks   JobTemplateService[]
+
+  @@index([categoryId])
+}
+
+model ServicePricing {
+  id         String           @id @default(cuid())
+  packageId  String
+  sizeTier   VehicleSizeTier
+  price      Int              // whole dollars; overrides basePrice when matched
+
+  package    ServicePackage   @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@unique([packageId, sizeTier])
+}
+
+model JobTemplate {
+  id              String               @id @default(cuid())
+  slug            String               @unique
+  name            String
+  description     String?
+  totalPrice      Int                  // whole dollars
+  durationMinutes Int                  @default(120)
+  active          Boolean              @default(true)
+
+  services        JobTemplateService[]
+  jobs            Job[]
+  quotes          Quote[]
+}
+
+model JobTemplateService {
+  id         String          @id @default(cuid())
+  templateId String
+  packageId  String
+
+  template   JobTemplate     @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  package    ServicePackage  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, packageId])
+}
+
+// ───────────── Operations: bays + techs ─────────────
+
+model Bay {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+
+  jobs        Job[]
+}
+
+model Technician {
+  id        String   @id @default(cuid())
+  userId    String?  @unique  // optional FK if the tech is also a portal user
+  name      String
+  initials  String?
+  active    Boolean  @default(true)
+
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  jobs      Job[]
+}
+
+// ───────────── Invoicing ─────────────
+
+model Invoice {
+  id              String              @id @default(cuid())
+  userId          String
+  number          String              @unique  // human-readable like INV-0001
+  status          InvoiceStatus       @default(draft)
+  notes           String?
+  issuedAt        DateTime?
+  dueAt           DateTime?
+  paidAt          DateTime?
+
+  // Money totals (cents to avoid rounding drift)
+  subtotalCents   Int                 @default(0)
+  discountCents   Int                 @default(0)
+  taxRateBps      Int                 @default(0)   // basis points (e.g. 600 = 6.00%)
+  taxCents        Int                 @default(0)
+  totalCents      Int                 @default(0)
+  paidCents       Int                 @default(0)
+  balanceCents    Int                 @default(0)
+
+  // Stripe (full balance pay-on-pickup)
+  stripeBalanceSessionId String?
+  stripeBalanceUrl       String?
+
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lineItems   InvoiceLineItem[]
+  payments    Payment[]
+  job         Job?
+  documents   Document[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model InvoiceLineItem {
+  id           String          @id @default(cuid())
+  invoiceId    String
+  description  String
+  quantity     Int             @default(1)
+  unitCents    Int
+  totalCents   Int
+  packageId    String?
+  sortOrder    Int             @default(0)
+
+  invoice      Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+model Payment {
+  id             String         @id @default(cuid())
+  invoiceId      String
+  userId         String
+  amountCents    Int
+  method         PaymentMethod
+  reference      String?         // stripe payment intent, check #, etc.
+  receivedAt     DateTime        @default(now())
+  note           String?
+
+  invoice        Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([userId])
+}
+
+// ───────────── Messaging ─────────────
+
+model MessageThread {
+  id            String     @id @default(cuid())
+  customerId    String     @unique
+  lastMessageAt DateTime   @default(now())
+  customerLastReadAt DateTime?
+  adminLastReadAt    DateTime?
+  createdAt     DateTime   @default(now())
+
+  customer      User       @relation("ThreadCustomer", fields: [customerId], references: [id], onDelete: Cascade)
+  messages      Message[]
+
+  @@index([lastMessageAt])
+}
+
+model Message {
+  id            String              @id @default(cuid())
+  threadId      String
+  sender        MessageSender
+  authorUserId  String?             // who wrote it (admin id or customer id)
+  body          String
+  createdAt     DateTime            @default(now())
+
+  thread        MessageThread       @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  attachments   MessageAttachment[]
+
+  @@index([threadId, createdAt])
+}
+
+model MessageAttachment {
+  id          String   @id @default(cuid())
+  messageId   String
+  url         String
+  pathname    String
+  contentType String
+  fileName    String?
+
+  message     Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+}
+
+// ───────────── Inventory ─────────────
+
+model InventoryItem {
+  id              String                  @id @default(cuid())
+  name            String
+  unit            String                  @default("unit")
+  quantity        Float                   @default(0)
+  lowStockAt      Float?
+  costCents       Int?                    // cost per unit
+  active          Boolean                 @default(true)
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  transactions    InventoryTransaction[]
+
+  @@index([active])
+}
+
+model InventoryTransaction {
+  id          String           @id @default(cuid())
+  itemId      String
+  delta       Float            // negative for consumption, positive for restock
+  reason      InventoryReason
+  jobId       String?
+  note        String?
+  createdAt   DateTime         @default(now())
+
+  item        InventoryItem    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  job         Job?             @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([itemId, createdAt])
+  @@index([jobId])
+}
+
+// ───────────── Reviews ─────────────
+
+model ReviewRequest {
+  id          String     @id @default(cuid())
+  userId      String
+  jobId       String?
+  vehicleId   String?
+  sentAt      DateTime?
+  respondedAt DateTime?
+  createdAt   DateTime   @default(now())
+
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job         Job?       @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  vehicle     Vehicle?   @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([sentAt, respondedAt])
+}
+
+model Review {
+  id          String     @id @default(cuid())
+  userId      String
+  jobId       String?
+  rating      Int        // 1..5
+  body        String?
+  publishedAt DateTime?
+  createdAt   DateTime   @default(now())
+
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job         Job?       @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([publishedAt])
+}
+
+// ───────────── Loyalty ─────────────
+
+model LoyaltyLedger {
+  id          String   @id @default(cuid())
+  userId      String
+  delta       Int      // positive = earn, negative = redeem
+  reason      String   // free-text: "Job INV-0001", "Redeemed -100 pts on INV-0042"
+  invoiceId   String?
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// ───────────── Documents ─────────────
+
+model Document {
+  id          String       @id @default(cuid())
+  userId      String?
+  jobId       String?
+  invoiceId   String?
+  kind        DocumentKind
+  url         String
+  pathname    String
+  fileName    String
+  createdAt   DateTime     @default(now())
+
+  invoice     Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([jobId])
+}
+
+// ───────────── Push notifications ─────────────
+
+model PushSubscription {
+  id           String   @id @default(cuid())
+  userId       String
+  endpoint     String   @unique
+  p256dh       String
+  auth         String
+  userAgent    String?
+  createdAt    DateTime @default(now())
+  lastUsedAt   DateTime?
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ───────────── Admin notifications (badge feed) ─────────────
+
+model AdminNotification {
+  id          String           @id @default(cuid())
+  kind        AdminNotifKind
+  title       String
+  body        String?
+  href        String?           // deep link inside admin
+  payload     Json?
+  readAt      DateTime?
+  createdAt   DateTime         @default(now())
+
+  @@index([readAt, createdAt])
+}
+
+// ───────────── Marketing campaigns ─────────────
+
+model Campaign {
+  id          String         @id @default(cuid())
+  name        String
+  subject     String
+  body        String
+  segmentJson Json           // serialized segment criteria
+  status      CampaignStatus @default(draft)
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  createdAt   DateTime       @default(now())
+
+  recipients  CampaignRecipient[]
+
+  @@index([status])
+}
+
+model CampaignRecipient {
+  id          String     @id @default(cuid())
+  campaignId  String
+  userId      String
+  sentAt      DateTime?
+  failedAt    DateTime?
+  errorText   String?
+
+  campaign    Campaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, userId])
+  @@index([sentAt])
+}
+
+// ───────────── Shop settings (singleton) ─────────────
+
+model ShopSettings {
+  id              String   @id @default(cuid())
+  // Singleton row keyed by an arbitrary id; we always read findFirst.
+  shopName        String   @default("RPM Auto Lab")
+  taxRateBps      Int      @default(600)   // 6.00% MI default
+  depositRatioBps Int      @default(2500)  // 25.00%
+  timeZone        String   @default("America/Detroit")
+  businessHoursJson Json?                  // { mon: {open: "09:00", close: "18:00"}, ... }
+  loyaltyPointsPerDollar Int @default(1)
+  loyaltyDollarsPerHundredPoints Int @default(5)  // 100 pts → $5
+  referralRewardCents     Int @default(2500)      // $25 each side
+  googleReviewUrl  String?
+  emailSignature   String?
+  updatedAt        DateTime @updatedAt
 }

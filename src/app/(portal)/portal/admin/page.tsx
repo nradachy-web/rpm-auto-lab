@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { sendJobStatus, sendReminderEmail, CUSTOMER_PORTAL_URL } from '@/lib/email-client';
@@ -33,6 +34,14 @@ interface Quote {
   stripePaymentLinkUrl?: string | null;
   depositPaidAt?: string | null;
 }
+interface InvoiceSummary {
+  id: string;
+  number: string;
+  status: string;
+  totalCents: number;
+  paidCents: number;
+  balanceCents: number;
+}
 interface Job {
   id: string;
   services: string[];
@@ -45,6 +54,8 @@ interface Job {
   adminNote?: string | null;
   quoteId?: string | null;
   scheduledAt?: string | null;
+  invoice?: InvoiceSummary | null;
+  invoiceId?: string | null;
 }
 
 interface Overview { customers: Customer[]; quotes: Quote[]; jobs: Job[] }
@@ -337,6 +348,32 @@ function JobCard({ job, onChange }: { job: Job; onChange: () => void }) {
           />
         )}
       </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 pt-3 border-t border-rpm-gray/30">
+        {!job.invoice ? (
+          <button
+            onClick={async () => {
+              setBusy(true);
+              const res = await api.post(`/api/admin/jobs/${job.id}/invoice`, {});
+              setBusy(false);
+              if (!res.ok) alert(res.error || 'Failed to create invoice');
+              onChange();
+            }}
+            disabled={busy}
+            className="px-3 py-1.5 rounded-lg border border-emerald-500/40 text-emerald-400 text-sm font-bold hover:bg-emerald-500/10 disabled:opacity-50"
+          >
+            Generate invoice
+          </button>
+        ) : (
+          <Link
+            href={`/portal/admin/invoices?open=${job.invoice.id}`}
+            className="px-3 py-1.5 rounded-lg bg-rpm-charcoal border border-rpm-gray text-sm text-rpm-white hover:border-rpm-red hover:text-rpm-red"
+          >
+            {job.invoice.number} · ${(job.invoice.totalCents / 100).toFixed(2)}{' '}
+            <span className="text-rpm-silver/70">({job.invoice.status})</span>
+          </Link>
+        )}
+      </div>
     </div>
   );
 }
@@ -355,6 +392,7 @@ function QuotesTab({ quotes, customers, onChange }: { quotes: Quote[]; customers
 function QuoteCard({ quote, onChange }: { quote: Quote; customers: Customer[]; onChange: () => void }) {
   const [amount, setAmount] = useState<string>(quote.quotedAmount ? String(quote.quotedAmount) : '');
   const [busy, setBusy] = useState(false);
+  const [aiHint, setAiHint] = useState<string | null>(null);
 
   const saveQuote = async () => {
     const n = Number(amount);
@@ -363,6 +401,23 @@ function QuoteCard({ quote, onChange }: { quote: Quote; customers: Customer[]; o
     await api.patch(`/api/admin/quotes/${quote.id}`, { quotedAmount: Math.round(n), status: 'quoted' });
     setBusy(false);
     onChange();
+  };
+
+  const aiSuggest = async () => {
+    setBusy(true);
+    const res = await api.post<{ suggestion: { price: number; rationale: string } }>('/api/admin/ai/quote-suggest', {
+      vehicleId: quote.vehicle.id,
+      services: quote.services,
+    });
+    setBusy(false);
+    if (!res.ok) {
+      alert(res.error || 'AI suggest failed');
+      return;
+    }
+    if (res.data?.suggestion) {
+      setAmount(String(res.data.suggestion.price));
+      setAiHint(res.data.suggestion.rationale);
+    }
   };
 
   const convertToJob = async () => {
@@ -412,6 +467,14 @@ function QuoteCard({ quote, onChange }: { quote: Quote; customers: Customer[]; o
             />
           </div>
           <button
+            onClick={aiSuggest}
+            disabled={busy}
+            className="px-3 py-2 rounded-lg border border-rpm-gray text-sm text-rpm-silver hover:text-rpm-white disabled:opacity-50"
+            title="Suggest a price using AI based on past comparable jobs"
+          >
+            AI suggest
+          </button>
+          <button
             onClick={saveQuote}
             disabled={busy || !amount}
             className="px-3 py-2 rounded-lg bg-rpm-red text-white text-sm font-bold hover:bg-rpm-red-dark disabled:opacity-50"
@@ -426,6 +489,9 @@ function QuoteCard({ quote, onChange }: { quote: Quote; customers: Customer[]; o
             Convert to job
           </button>
         </div>
+      )}
+      {aiHint && (
+        <div className="mt-2 text-xs text-rpm-silver italic px-1">AI: {aiHint}</div>
       )}
 
       {quote.quotedAmount && (

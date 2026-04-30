@@ -23,12 +23,15 @@ export const GET = withCors(async () => {
       }),
       prisma.job.findMany({
         orderBy: { updatedAt: "desc" },
-        take: 50,
+        take: 100,
         include: {
           user: { select: { id: true, email: true, name: true } },
           vehicle: true,
           events: { orderBy: { at: "desc" }, take: 1 },
           photos: { orderBy: { uploadedAt: "asc" } },
+          bay: true,
+          technician: true,
+          invoice: { select: { id: true, number: true, status: true, totalCents: true, paidCents: true, balanceCents: true } },
         },
       }),
     ]);

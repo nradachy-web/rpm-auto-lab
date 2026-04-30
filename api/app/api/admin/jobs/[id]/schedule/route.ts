@@ -6,7 +6,13 @@ import { prisma } from "@/lib/db";
 export const runtime = "nodejs";
 
 const schema = z.object({
-  scheduledAt: z.string().datetime().nullable(),
+  scheduledStartAt: z.string().datetime().nullable().optional(),
+  scheduledEndAt: z.string().datetime().nullable().optional(),
+  durationMinutes: z.number().int().positive().nullable().optional(),
+  bayId: z.string().nullable().optional(),
+  technicianId: z.string().nullable().optional(),
+  // Back-compat alias
+  scheduledAt: z.string().datetime().nullable().optional(),
 });
 
 export const PATCH = withCors(async (req) => {
@@ -19,10 +25,22 @@ export const PATCH = withCors(async (req) => {
     const parsed = schema.safeParse(body);
     if (!parsed.success) return json({ error: "Validation failed", issues: parsed.error.issues }, { status: 400 });
 
+    const start = parsed.data.scheduledStartAt ?? parsed.data.scheduledAt;
+    const end = parsed.data.scheduledEndAt;
+    const data: Record<string, unknown> = {};
+    if (start !== undefined) {
+      data.scheduledStartAt = start ? new Date(start) : null;
+      data.scheduledAt = start ? new Date(start) : null;
+    }
+    if (end !== undefined) data.scheduledEndAt = end ? new Date(end) : null;
+    if (parsed.data.durationMinutes !== undefined) data.durationMinutes = parsed.data.durationMinutes;
+    if (parsed.data.bayId !== undefined) data.bayId = parsed.data.bayId;
+    if (parsed.data.technicianId !== undefined) data.technicianId = parsed.data.technicianId;
+
     const updated = await prisma.job.update({
       where: { id },
-      data: { scheduledAt: parsed.data.scheduledAt ? new Date(parsed.data.scheduledAt) : null },
-      include: { user: { select: { email: true, name: true } }, vehicle: true },
+      data,
+      include: { user: { select: { email: true, name: true } }, vehicle: true, bay: true, technician: true },
     });
     return json({ job: updated });
   } catch (e) {

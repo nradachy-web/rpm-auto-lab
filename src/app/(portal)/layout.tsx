@@ -15,8 +15,20 @@ import {
   ChevronRight,
   Shield,
   Calendar,
+  CalendarPlus,
+  Tag,
+  MessageSquare,
+  Receipt,
+  Users,
+  BarChart3,
+  Package,
+  Megaphone,
+  HardHat,
+  Gift,
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import GlobalSearch from '@/components/portal/GlobalSearch';
+import PWARegister from '@/components/portal/PWARegister';
 
 interface SessionUser {
   id: string;
@@ -28,17 +40,30 @@ interface SessionUser {
 
 const customerNav = [
   { href: '/portal/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/portal/book', label: 'Book Service', icon: CalendarPlus },
   { href: '/portal/vehicles', label: 'My Vehicles', icon: Car },
   { href: '/portal/jobs', label: 'My Jobs', icon: Wrench },
   { href: '/portal/quotes', label: 'Quotes', icon: FileText },
+  { href: '/portal/messages', label: 'Messages', icon: MessageSquare },
+  { href: '/portal/invoices', label: 'Invoices', icon: Receipt },
+  { href: '/portal/rewards', label: 'Rewards', icon: Gift },
   { href: '/portal/settings', label: 'Settings', icon: Settings },
 ] as const;
 
 const adminNav = [
   { href: '/portal/admin', label: 'Admin', icon: Shield },
   { href: '/portal/admin/schedule', label: 'Schedule', icon: Calendar },
+  { href: '/portal/admin/invoices', label: 'Invoices', icon: Receipt },
+  { href: '/portal/admin/messages', label: 'Messages', icon: MessageSquare },
+  { href: '/portal/admin/reports', label: 'Reports', icon: BarChart3 },
+  { href: '/portal/admin/catalog', label: 'Catalog', icon: Tag },
+  { href: '/portal/admin/inventory', label: 'Inventory', icon: Package },
+  { href: '/portal/admin/campaigns', label: 'Campaigns', icon: Megaphone },
+  { href: '/portal/admin/team', label: 'Team', icon: Users },
+  { href: '/portal/admin/bay', label: 'Bay (Tech)', icon: HardHat },
   ...customerNav,
 ] as const;
+
 
 // Path prefixes that don't require a session (set-password lives under /portal
 // because it needs to share the portal layout shell visually, but the user
@@ -103,6 +128,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="flex min-h-screen bg-rpm-black">
+      <PWARegister />
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-rpm-charcoal border-r border-rpm-gray/50 fixed inset-y-0 left-0 z-40">
         <Link href="/" className="flex items-center gap-3 px-6 py-5 border-b border-rpm-gray/50">
@@ -273,6 +299,11 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
       {/* Main Content */}
       <main className="flex-1 lg:ml-64 pt-14 pb-20 lg:pt-0 lg:pb-0 min-h-screen">
+        {user?.role === 'admin' && (
+          <div className="hidden lg:flex items-center gap-3 px-6 py-3 border-b border-rpm-gray/40 bg-rpm-charcoal/40 sticky top-0 z-30 backdrop-blur">
+            <GlobalSearch />
+          </div>
+        )}
         <div className="p-4 sm:p-6 lg:p-8">{children}</div>
       </main>
     </div>
