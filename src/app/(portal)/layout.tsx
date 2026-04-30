@@ -26,7 +26,7 @@ import {
   HardHat,
   Gift,
 } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, setAuthToken } from '@/lib/api';
 import GlobalSearch from '@/components/portal/GlobalSearch';
 import PWARegister from '@/components/portal/PWARegister';
 
@@ -100,6 +100,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
   const signOut = async () => {
     await api.post('/api/auth/logout');
+    setAuthToken(null);
     setUser(null);
     router.replace('/login');
   };

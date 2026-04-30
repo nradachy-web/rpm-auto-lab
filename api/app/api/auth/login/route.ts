@@ -2,7 +2,7 @@ import { z } from "zod";
 import { withCors, json } from "@/lib/cors";
 import { prisma } from "@/lib/db";
 import { verifyPassword } from "@/lib/auth";
-import { getSession } from "@/lib/session";
+import { getSession, sealSessionToken } from "@/lib/session";
 
 export const runtime = "nodejs";
 
@@ -55,8 +55,13 @@ export const POST = withCors(async (req) => {
   session.role = user.role;
   await session.save();
 
+  // Also issue a bearer token so mobile browsers that block third-party
+  // cookies (iOS Safari etc.) still have a working auth path.
+  const token = await sealSessionToken({ userId: user.id, role: user.role });
+
   return json({
     user: { id: user.id, email: user.email, name: user.name, role: user.role },
+    token,
   });
 });
 

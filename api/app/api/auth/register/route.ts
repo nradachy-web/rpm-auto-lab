@@ -2,7 +2,7 @@ import { z } from "zod";
 import { withCors, json } from "@/lib/cors";
 import { prisma } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
-import { getSession } from "@/lib/session";
+import { getSession, sealSessionToken } from "@/lib/session";
 
 export const runtime = "nodejs";
 
@@ -36,8 +36,10 @@ export const POST = withCors(async (req) => {
   session.role = user.role;
   await session.save();
 
+  const token = await sealSessionToken({ userId: user.id, role: user.role });
   return json({
     user: { id: user.id, email: user.email, name: user.name, role: user.role },
+    token,
   });
 });
 

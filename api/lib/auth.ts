@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
-import { getSession } from "./session";
+import { headers } from "next/headers";
+import { getSession, unsealSessionFromAuthHeader } from "./session";
 import { prisma } from "./db";
 import type { User } from "@prisma/client";
 
@@ -18,9 +19,22 @@ export function generateToken(): string {
 }
 
 export async function currentUser(): Promise<User | null> {
+  // Try cookie-based session first (desktop happy path).
   const session = await getSession();
-  if (!session.userId) return null;
-  return prisma.user.findUnique({ where: { id: session.userId } });
+  let userId = session.userId;
+
+  // Fall back to bearer token from the Authorization header. This is what
+  // mobile browsers (especially iOS Safari) hit when third-party cookies
+  // are blocked.
+  if (!userId) {
+    const hdrs = await headers();
+    const auth = hdrs.get("authorization");
+    const tokenSession = await unsealSessionFromAuthHeader(auth);
+    userId = tokenSession.userId;
+  }
+
+  if (!userId) return null;
+  return prisma.user.findUnique({ where: { id: userId } });
 }
 
 export async function requireUser(): Promise<User> {
