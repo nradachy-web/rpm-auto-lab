@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { api } from '@/lib/api';
+import { Download } from 'lucide-react';
+import { api, API_BASE } from '@/lib/api';
 import CountUp from '@/components/portal/CountUp';
 
 interface Report {
@@ -17,6 +18,8 @@ interface Report {
   avgTicketCents: number;
   topServices: { slug: string; count: number }[];
   daily: { date: string; revenueCents: number }[];
+  materialCostCents: number;
+  grossMarginCents: number;
 }
 
 const RANGES = [
@@ -56,19 +59,31 @@ export default function ReportsPage() {
           <h1 className="text-3xl md:text-4xl font-black text-rpm-white">Reports</h1>
           <p className="text-rpm-silver mt-1">Performance for the selected window.</p>
         </div>
-        <div className="flex items-center gap-1 bg-rpm-charcoal rounded-lg p-1 border border-rpm-gray/40">
-          {RANGES.map((r) => (
-            <button
-              key={r.label}
-              onClick={() => setActiveRange(r.days)}
-              className={
-                'px-3 py-1.5 rounded-md text-xs font-bold transition ' +
-                (activeRange === r.days ? 'bg-rpm-red text-white' : 'text-rpm-silver hover:text-rpm-white')
-              }
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1 bg-rpm-charcoal rounded-lg p-1 border border-rpm-gray/40">
+            {RANGES.map((r) => (
+              <button
+                key={r.label}
+                onClick={() => setActiveRange(r.days)}
+                className={
+                  'px-3 py-1.5 rounded-md text-xs font-bold transition ' +
+                  (activeRange === r.days ? 'bg-rpm-red text-white' : 'text-rpm-silver hover:text-rpm-white')
+                }
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+          {report && (
+            <a
+              href={`${API_BASE}/api/admin/exports/quickbooks?from=${encodeURIComponent(report.range.from)}&to=${encodeURIComponent(report.range.to)}`}
+              className="px-3 py-1.5 rounded-lg border border-rpm-gray text-xs font-bold text-rpm-silver hover:text-rpm-white flex items-center gap-1"
+              title="Download CSV importable by QuickBooks Online"
             >
-              {r.label}
-            </button>
-          ))}
+              <Download className="w-3.5 h-3.5" />
+              QuickBooks CSV
+            </a>
+          )}
         </div>
       </header>
 
@@ -82,6 +97,17 @@ export default function ReportsPage() {
         <Stat label="Jobs Completed" value={report.completedJobs} />
         <Stat label="Avg Ticket" value={report.avgTicketCents} format={(n) => `$${(n / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
         <Stat label="Quote → Job" value={report.conversionRateBps} format={(n) => `${(n / 100).toFixed(1)}%`} subtitle={`${report.convertedQuotes}/${report.quotesCreated}`} />
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.1 }}
+        className="grid grid-cols-2 md:grid-cols-3 gap-3"
+      >
+        <Stat label="Materials cost" value={report.materialCostCents} format={(n) => `$${(n / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
+        <Stat label="Gross margin" value={report.grossMarginCents} format={(n) => `$${(n / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
+        <Stat label="Margin %" value={report.revenueCents > 0 ? Math.round((report.grossMarginCents / report.revenueCents) * 1000) : 0} format={(n) => `${(n / 10).toFixed(1)}%`} />
       </motion.div>
 
       <motion.section

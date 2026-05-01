@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Search } from 'lucide-react';
+import { Search, StickyNote } from 'lucide-react';
 import { api } from '@/lib/api';
 
 interface Customer {
@@ -9,6 +9,7 @@ interface Customer {
   name: string;
   email: string;
   phone?: string | null;
+  notes?: string | null;
   createdAt: string;
   _count: { vehicles: number; quotes: number; jobs: number };
 }
@@ -17,14 +18,17 @@ export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
+  const [editingNotesFor, setEditingNotesFor] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      const res = await api.get<{ customers: Customer[] }>('/api/admin/overview');
-      if (res.ok) setCustomers(res.data?.customers ?? []);
-      setLoading(false);
-    })();
-  }, []);
+  const load = async () => {
+    const res = await api.get<{ customers: Customer[] }>('/api/admin/overview');
+    if (res.ok) setCustomers(res.data?.customers ?? []);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
 
   const term = q.trim().toLowerCase();
   const filtered = !term
@@ -33,8 +37,22 @@ export default function CustomersPage() {
         (c) =>
           c.name.toLowerCase().includes(term) ||
           c.email.toLowerCase().includes(term) ||
-          (c.phone || '').toLowerCase().includes(term)
+          (c.phone || '').toLowerCase().includes(term) ||
+          (c.notes || '').toLowerCase().includes(term)
       );
+
+  const startEdit = (c: Customer) => {
+    setEditingNotesFor(c.id);
+    setNoteDraft(c.notes || '');
+  };
+
+  const saveNotes = async (id: string) => {
+    setSavingNotes(true);
+    await api.patch(`/api/admin/customers/${id}`, { notes: noteDraft || null });
+    setSavingNotes(false);
+    setEditingNotesFor(null);
+    load();
+  };
 
   if (loading) return <div className="text-rpm-silver text-sm">Loading…</div>;
 
@@ -42,7 +60,7 @@ export default function CustomersPage() {
     <div className="space-y-4">
       <header>
         <h1 className="text-3xl md:text-4xl font-black text-rpm-white">Customers</h1>
-        <p className="text-rpm-silver mt-1">{customers.length} on file. Use search above for cross-system lookup.</p>
+        <p className="text-rpm-silver mt-1">{customers.length} on file. Click the note icon to add a private memo.</p>
       </header>
 
       <div className="relative max-w-md">
@@ -50,7 +68,7 @@ export default function CustomersPage() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Filter by name, email, or phone"
+          placeholder="Filter by name, email, phone, or note"
           className="w-full pl-9 pr-3 py-2 rounded-lg bg-rpm-charcoal border border-rpm-gray text-sm text-rpm-white"
         />
       </div>
@@ -60,33 +78,50 @@ export default function CustomersPage() {
           {term ? 'No matches.' : 'No customers yet.'}
         </div>
       ) : (
-        <div className="rounded-xl border border-rpm-gray/40 bg-rpm-dark overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-rpm-charcoal/60 text-xs uppercase tracking-wider text-rpm-silver">
-              <tr>
-                <th className="text-left p-3">Customer</th>
-                <th className="text-left p-3">Email</th>
-                <th className="text-left p-3 hidden md:table-cell">Phone</th>
-                <th className="text-right p-3">Vehicles</th>
-                <th className="text-right p-3">Quotes</th>
-                <th className="text-right p-3">Jobs</th>
-                <th className="text-right p-3 hidden md:table-cell">Joined</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((c) => (
-                <tr key={c.id} className="border-t border-rpm-gray/30 hover:bg-rpm-charcoal/30">
-                  <td className="p-3 text-rpm-white font-semibold">{c.name}</td>
-                  <td className="p-3 text-rpm-silver">{c.email}</td>
-                  <td className="p-3 text-rpm-silver hidden md:table-cell">{c.phone || '—'}</td>
-                  <td className="p-3 text-right tabular-nums text-rpm-silver">{c._count.vehicles}</td>
-                  <td className="p-3 text-right tabular-nums text-rpm-silver">{c._count.quotes}</td>
-                  <td className="p-3 text-right tabular-nums text-rpm-silver">{c._count.jobs}</td>
-                  <td className="p-3 text-right text-rpm-silver/80 text-xs hidden md:table-cell">{new Date(c.createdAt).toLocaleDateString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-2">
+          {filtered.map((c) => (
+            <div key={c.id} className="rounded-xl border border-rpm-gray/40 bg-rpm-dark p-4">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div className="min-w-0">
+                  <div className="text-base font-bold text-rpm-white">{c.name}</div>
+                  <div className="text-xs text-rpm-silver mt-0.5">
+                    {c.email} {c.phone && `· ${c.phone}`}
+                  </div>
+                  <div className="text-[11px] uppercase tracking-wider text-rpm-silver/70 mt-1">
+                    {c._count.vehicles} vehicle{c._count.vehicles === 1 ? '' : 's'} · {c._count.jobs} job{c._count.jobs === 1 ? '' : 's'} · {c._count.quotes} quote{c._count.quotes === 1 ? '' : 's'} · joined {new Date(c.createdAt).toLocaleDateString()}
+                  </div>
+                </div>
+                <button
+                  onClick={() => startEdit(c)}
+                  className="px-2.5 py-1.5 rounded-md border border-rpm-gray text-xs text-rpm-silver hover:text-rpm-white flex items-center gap-1"
+                >
+                  <StickyNote className="w-3.5 h-3.5" />
+                  {c.notes ? 'Edit note' : 'Add note'}
+                </button>
+              </div>
+              {editingNotesFor === c.id ? (
+                <div className="mt-3 space-y-2">
+                  <textarea
+                    rows={3}
+                    value={noteDraft}
+                    onChange={(e) => setNoteDraft(e.target.value)}
+                    placeholder="Private notes — only admins see this. e.g. picky about edge tucks, always pays cash, referred by Dan."
+                    className="w-full px-3 py-2 rounded-lg bg-rpm-charcoal border border-rpm-gray text-sm text-rpm-white resize-none"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => setEditingNotesFor(null)} className="px-3 py-1.5 text-xs text-rpm-silver hover:text-rpm-white">Cancel</button>
+                    <button onClick={() => saveNotes(c.id)} disabled={savingNotes} className="px-3 py-1.5 rounded-md bg-rpm-red text-white text-xs font-bold disabled:opacity-50">
+                      {savingNotes ? 'Saving…' : 'Save note'}
+                    </button>
+                  </div>
+                </div>
+              ) : c.notes && (
+                <div className="mt-3 px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/20 text-xs text-amber-200/90 italic">
+                  {c.notes}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>

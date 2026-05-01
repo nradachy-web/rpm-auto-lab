@@ -62,6 +62,15 @@ export const POST = withCors(async (req) => {
         where: { id: meta.quoteId },
         data: { depositPaidAt: new Date(), status: "approved" },
       });
+    } else if (meta.kind === "subscription" && meta.userId) {
+      type SessionWithSub = { id: string; subscription: string | null; customer: string | null };
+      const s = session as unknown as SessionWithSub;
+      if (s.subscription) {
+        await prisma.subscription.updateMany({
+          where: { userId: meta.userId, stripeSubscriptionId: null, status: "active" },
+          data: { stripeSubscriptionId: s.subscription, stripeCustomerId: s.customer ?? null },
+        });
+      }
     }
   }
   return json({ received: true });

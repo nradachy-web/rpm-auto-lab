@@ -159,7 +159,8 @@ export default function AdminPage() {
       )}
 
       <section className="flex items-center gap-2 flex-wrap pt-4 border-t border-rpm-gray/30">
-        <span className="text-xs text-rpm-silver">Quick jump:</span>
+        <Link href="/portal/admin/new-quote" className="px-3 py-1.5 rounded-lg bg-rpm-red text-white text-xs font-bold hover:bg-rpm-red-dark">+ New quote (phone/walk-in)</Link>
+        <span className="text-xs text-rpm-silver pl-2">Quick jump:</span>
         <Link href="/portal/admin/schedule" className="px-3 py-1.5 rounded-lg border border-rpm-gray text-xs text-rpm-silver hover:text-rpm-white">Schedule</Link>
         <Link href="/portal/admin/messages" className="px-3 py-1.5 rounded-lg border border-rpm-gray text-xs text-rpm-silver hover:text-rpm-white">Inbox</Link>
         <Link href="/portal/admin/invoices" className="px-3 py-1.5 rounded-lg border border-rpm-gray text-xs text-rpm-silver hover:text-rpm-white">Money</Link>
@@ -413,6 +414,47 @@ function JobCard({ job, onChange }: { job: Job; onChange: () => void }) {
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2 pt-3 border-t border-rpm-gray/30">
+        <Link
+          href={`/portal/admin/intake?job=${job.id}`}
+          className="px-3 py-1.5 rounded-lg border border-rpm-gray text-sm text-rpm-silver hover:text-rpm-white"
+        >
+          Intake
+        </Link>
+        {(job.status === 'in_progress' || job.status === 'scheduled') && (
+          <button
+            onClick={async () => {
+              const desc = window.prompt('Change order description (e.g. "additional paint correction"):');
+              if (!desc) return;
+              const priceStr = window.prompt('Added cost in dollars (whole number):');
+              const cents = Math.round(parseFloat(priceStr || '0') * 100);
+              if (!cents || cents <= 0) return;
+              setBusy(true);
+              const res = await api.post<{ customerLink: string }>(`/api/admin/jobs/${job.id}/change-orders`, {
+                description: desc, unitCents: cents, quantity: 1,
+              });
+              setBusy(false);
+              if (!res.ok) { alert(res.error || 'Failed'); return; }
+              if (res.data?.customerLink) {
+                navigator.clipboard.writeText(res.data.customerLink);
+                alert('Change order created. SMS sent to customer + link copied to clipboard.');
+              }
+              onChange();
+            }}
+            disabled={busy}
+            className="px-3 py-1.5 rounded-lg border border-amber-500/40 text-amber-300 text-sm font-bold hover:bg-amber-500/10 disabled:opacity-50"
+          >
+            Add change order
+          </button>
+        )}
+        {(job.status === 'completed' || job.status === 'picked_up') && (
+          <Link
+            href={`/portal/warranty?job=${job.id}`}
+            target="_blank"
+            className="px-3 py-1.5 rounded-lg border border-rpm-gray text-sm text-rpm-silver hover:text-rpm-white"
+          >
+            Warranty card
+          </Link>
+        )}
         {!job.invoice ? (
           <button
             onClick={async () => {

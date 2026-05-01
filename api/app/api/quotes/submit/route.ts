@@ -21,6 +21,8 @@ const schema = z.object({
     notes: z.string().max(2000).optional(),
   }),
   estimatedTotal: z.number().int().nonnegative(),
+  source: z.string().max(80).optional(),
+  utmJson: z.record(z.string()).nullable().optional(),
 });
 
 const PUBLIC_SITE = process.env.PUBLIC_ORIGIN ?? "https://nradachy-web.github.io";
@@ -90,6 +92,8 @@ export const POST = withCors(async (req) => {
       estimatedTotal,
       notes: contact.notes,
       status: "submitted",
+      source: parsed.data.source ?? "web",
+      utmJson: parsed.data.utmJson ?? undefined,
     },
   });
 

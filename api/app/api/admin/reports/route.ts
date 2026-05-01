@@ -44,6 +44,18 @@ export const GET = withCors(async (req) => {
       where: { submittedAt: { gte: from, lte: to }, status: "converted" },
     });
 
+    // Material cost: any inventory transaction in range with a cost.
+    const inventoryTx = await prisma.inventoryTransaction.findMany({
+      where: { createdAt: { gte: from, lte: to } },
+      include: { item: { select: { costCents: true } } },
+    });
+    let materialCostCents = 0;
+    for (const t of inventoryTx) {
+      if (t.delta < 0 && t.item?.costCents) {
+        materialCostCents += Math.abs(t.delta) * t.item.costCents;
+      }
+    }
+
     const revenueCents = paymentsAgg._sum.amountCents ?? 0;
     const paymentCount = paymentsAgg._count ?? 0;
     const avgTicketCents = paymentCount > 0 ? Math.round(revenueCents / paymentCount) : 0;
@@ -88,6 +100,8 @@ export const GET = withCors(async (req) => {
       avgTicketCents,
       topServices,
       daily: days,
+      materialCostCents,
+      grossMarginCents: revenueCents - materialCostCents,
     });
   } catch (e) {
     if (e instanceof AuthError) return json({ error: e.code }, { status: e.code === "UNAUTHENTICATED" ? 401 : 403 });

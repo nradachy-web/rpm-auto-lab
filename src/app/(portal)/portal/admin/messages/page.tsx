@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Send } from 'lucide-react';
+import { Send, Sparkles } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -141,10 +141,25 @@ function AdminMessagesInner() {
                   placeholder="Reply…"
                   className="flex-1 px-3 py-2 rounded-lg bg-rpm-charcoal border border-rpm-gray text-sm text-rpm-white placeholder:text-rpm-silver/50 resize-none focus:outline-none focus:border-rpm-red"
                 />
-                <button type="submit" disabled={sending || !text.trim()} className="px-4 py-2 rounded-lg bg-rpm-red text-white font-bold disabled:opacity-50 flex items-center gap-1">
-                  <Send className="w-4 h-4" />
-                  Send
-                </button>
+                <div className="flex flex-col gap-1">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const res = await api.post<{ suggestion: string }>('/api/admin/ai/draft-reply', { threadId: activeId });
+                      if (!res.ok) { alert(res.error || 'AI not available'); return; }
+                      if (res.data?.suggestion) setText(res.data.suggestion);
+                    }}
+                    className="px-3 py-1.5 rounded-lg border border-rpm-gray text-xs text-rpm-silver hover:text-rpm-white flex items-center gap-1"
+                    title="Draft a reply with AI"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    Draft
+                  </button>
+                  <button type="submit" disabled={sending || !text.trim()} className="px-4 py-2 rounded-lg bg-rpm-red text-white font-bold disabled:opacity-50 flex items-center gap-1">
+                    <Send className="w-4 h-4" />
+                    Send
+                  </button>
+                </div>
               </form>
             </>
           )}

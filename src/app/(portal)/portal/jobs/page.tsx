@@ -112,10 +112,15 @@ export default function JobsPage() {
               <div key={job.id} className="rounded-xl border border-rpm-gray/50 bg-rpm-dark p-5">
                 <div className="flex items-start justify-between mb-4">
                   <div>
-                    <div className="text-lg font-black text-rpm-white">
+                    <a href={`/rpm-auto-lab/portal/job?id=${job.id}`} className="text-lg font-black text-rpm-white hover:text-rpm-red">
                       {job.vehicle.year} {job.vehicle.make} {job.vehicle.model}
-                    </div>
+                    </a>
                     <div className="text-sm text-rpm-silver mt-0.5">{job.services.join(' + ')}</div>
+                    {(job.status === 'scheduled' || job.status === 'in_progress' || job.status === 'completed') && (
+                      <a href={`/rpm-auto-lab/portal/job?id=${job.id}`} className="inline-block mt-1 text-[11px] uppercase tracking-wider text-rpm-red hover:text-rpm-red-glow font-bold">
+                        Live tracker →
+                      </a>
+                    )}
                   </div>
                   <span
                     className={cn(

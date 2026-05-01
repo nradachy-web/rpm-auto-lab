@@ -135,6 +135,36 @@ export default function QuoteForm() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [accountCreated, setAccountCreated] = useState(false);
 
+  // Capture UTM + referrer at mount so we know where the lead came from.
+  const utm = (() => {
+    if (typeof window === "undefined") return null;
+    const params = new URLSearchParams(window.location.search);
+    const keys = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "ref"];
+    const out: Record<string, string> = {};
+    for (const k of keys) {
+      const v = params.get(k);
+      if (v) out[k] = v;
+    }
+    if (document.referrer) out["referrer"] = document.referrer;
+    return Object.keys(out).length > 0 ? out : null;
+  })();
+
+  const inferredSource = (() => {
+    if (!utm) return "web";
+    if (utm["utm_source"]) return utm["utm_source"];
+    if (utm["ref"]) return "referral";
+    if (utm["referrer"]) {
+      try {
+        const host = new URL(utm["referrer"]).hostname;
+        if (host.includes("instagram")) return "instagram";
+        if (host.includes("facebook")) return "facebook";
+        if (host.includes("google")) return "google";
+        return host;
+      } catch {}
+    }
+    return "web";
+  })();
+
   const handleSubmit = async () => {
     setSubmitting(true);
     setSubmitError(null);
@@ -154,6 +184,8 @@ export default function QuoteForm() {
         notes: contact.notes || undefined,
       },
       estimatedTotal,
+      source: inferredSource,
+      utmJson: utm,
     };
     const res = await api.post<{
       ok: boolean;

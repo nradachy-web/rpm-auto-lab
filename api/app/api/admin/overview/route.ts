@@ -12,7 +12,7 @@ export const GET = withCors(async () => {
         where: { role: "customer" },
         orderBy: { createdAt: "desc" },
         select: {
-          id: true, email: true, name: true, phone: true, createdAt: true,
+          id: true, email: true, name: true, phone: true, createdAt: true, notes: true,
           _count: { select: { vehicles: true, quotes: true, jobs: true } },
         },
       }),

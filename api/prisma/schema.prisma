@@ -137,6 +137,9 @@ model User {
   smsConsent         Boolean   @default(false)
   pushConsent        Boolean   @default(false)
 
+  // Free-text shop notes — admin-only.
+  notes              String?
+
   // Referral / loyalty
   referralCode       String?   @unique
   referredById       String?
@@ -159,6 +162,7 @@ model User {
   payments           Payment[]
   threadAsCustomer   MessageThread? @relation("ThreadCustomer")
   loyaltyLedger      LoyaltyLedger[]
+  subscriptions      Subscription[]
   pushSubscriptions  PushSubscription[]
   reviews            Review[]
   reviewRequests     ReviewRequest[]
@@ -214,6 +218,11 @@ model Quote {
   stripePaymentLinkUrl    String?
   depositPaidAt           DateTime?
 
+  // Lead source — "phone", "walkin", "web", "referral", or anything custom.
+  // utmJson stores the full UTM bundle when the quote came from a campaign.
+  source         String?
+  utmJson        Json?
+
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   vehicle     Vehicle      @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
   jobs        Job[]
@@ -221,6 +230,7 @@ model Quote {
 
   @@index([userId])
   @@index([status])
+  @@index([source])
 }
 
 model Job {
@@ -264,6 +274,8 @@ model Job {
   inventoryUsage  InventoryTransaction[]
   reviewRequests  ReviewRequest[]
   reviews         Review[]
+  intake          IntakeForm?
+  changeOrders    ChangeOrder[]
 
   @@index([userId])
   @@index([status])
@@ -706,3 +718,90 @@ model ShopSettings {
   emailSignature   String?
   updatedAt        DateTime @updatedAt
 }
+
+// ───────────── Intake (drop-off) ─────────────
+
+model IntakeForm {
+  id              String   @id @default(cuid())
+  jobId           String   @unique
+  mileage         Int?
+  fuelLevelEighths Int?    // 0-8 (eighths of a tank)
+  keyCount        Int?
+  customerNotes   String?
+  shopNotes       String?
+  signatureDataUrl String? // base64 image of canvas signature
+  signedByName    String?
+  signedAt        DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  job             Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+}
+
+// ───────────── Change orders ─────────────
+// Mid-job scope additions that need customer sign-off before they hit the
+// invoice. Customer gets an SMS+email link with a one-tap approve / decline.
+
+enum ChangeOrderStatus {
+  pending
+  approved
+  declined
+  voided
+}
+
+model ChangeOrder {
+  id              String              @id @default(cuid())
+  jobId           String
+  invoiceId       String?
+  description     String
+  quantity        Int                 @default(1)
+  unitCents       Int
+  totalCents      Int
+  photoUrl        String?
+  photoPathname   String?
+  status          ChangeOrderStatus   @default(pending)
+  approvalToken   String              @unique
+  approvedAt      DateTime?
+  declinedAt      DateTime?
+  declineReason   String?
+  resultingLineItemId String?
+  createdByAdminId String?
+  createdAt       DateTime            @default(now())
+
+  job             Job                 @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@index([approvalToken])
+}
+
+// ───────────── Subscriptions ─────────────
+// Recurring service plans (e.g. Quarterly Maintenance Wash).
+
+enum SubscriptionStatus {
+  active
+  paused
+  cancelled
+  past_due
+}
+
+model Subscription {
+  id              String              @id @default(cuid())
+  userId          String
+  packageSlug     String              // ServicePackage.slug
+  intervalDays    Int                 // e.g. 90 for quarterly
+  priceCents      Int
+  nextChargeAt    DateTime?
+  startedAt       DateTime            @default(now())
+  cancelledAt     DateTime?
+  status          SubscriptionStatus  @default(active)
+  stripeSubscriptionId String?
+  stripeCustomerId String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status, nextChargeAt])
+}
+
