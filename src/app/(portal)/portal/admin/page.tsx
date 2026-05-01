@@ -2,11 +2,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { sendJobStatus, sendReminderEmail, CUSTOMER_PORTAL_URL } from '@/lib/email-client';
 import PhotoGallery, { type JobPhoto } from '@/components/portal/PhotoGallery';
 import JobPhotoUploader from '@/components/portal/JobPhotoUploader';
+import PortalHero from '@/components/portal/PortalHero';
+import CountUp from '@/components/portal/CountUp';
 
 interface PendingReminder {
   id: string;
@@ -89,12 +92,34 @@ export default function AdminPage() {
   if (err) return <div className="text-rpm-red text-sm">{err}</div>;
   if (!data) return null;
 
+  const totals = {
+    jobs: data.jobs.length,
+    quotes: data.quotes.length,
+    customers: data.customers.length,
+    activeJobs: data.jobs.filter((j) => j.status === 'scheduled' || j.status === 'in_progress').length,
+    pendingQuotes: data.quotes.filter((q) => q.status === 'submitted').length,
+  };
+
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-3xl md:text-4xl font-black text-rpm-white">Admin</h1>
-        <p className="text-rpm-silver mt-1">All customers, quotes, and jobs.</p>
-      </header>
+      <PortalHero
+        imageFile="admin-hero.jpg"
+        eyebrow="Shop"
+        title="Today on the floor"
+        subtitle={`${totals.activeJobs} active jobs, ${totals.pendingQuotes} pending quotes.`}
+      />
+
+      <motion.div
+        initial="hidden"
+        animate="show"
+        variants={{ hidden: {}, show: { transition: { staggerChildren: 0.05 } } }}
+        className="grid grid-cols-2 md:grid-cols-4 gap-3"
+      >
+        <MiniStat label="Customers" value={totals.customers} />
+        <MiniStat label="Jobs" value={totals.jobs} />
+        <MiniStat label="Active" value={totals.activeJobs} accent="amber" />
+        <MiniStat label="Pending quotes" value={totals.pendingQuotes} accent="red" />
+      </motion.div>
 
       <div className="flex items-center gap-2 border-b border-rpm-gray/40">
         {(['jobs', 'quotes', 'customers'] as const).map((t) => (
@@ -237,6 +262,21 @@ function RemindersPanel() {
         ))}
       </ul>
     </section>
+  );
+}
+
+function MiniStat({ label, value, accent }: { label: string; value: number; accent?: 'red' | 'amber' }) {
+  const tone = accent === 'red' ? 'text-rpm-red' : accent === 'amber' ? 'text-amber-400' : 'text-rpm-white';
+  return (
+    <motion.div
+      variants={{ hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transition: { duration: 0.4 } } }}
+      className="rounded-xl border border-rpm-gray/40 bg-rpm-dark p-3"
+    >
+      <div className="text-[10px] uppercase tracking-wider text-rpm-silver">{label}</div>
+      <div className={`text-2xl font-black tabular-nums mt-0.5 ${tone}`}>
+        <CountUp value={value} />
+      </div>
+    </motion.div>
   );
 }
 

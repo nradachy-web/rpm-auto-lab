@@ -8,9 +8,15 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-rpm-black flex flex-col items-center justify-center relative">
-      {/* Subtle gradient background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-rpm-red/3 via-rpm-black to-rpm-dark" />
+    <div className="min-h-screen bg-rpm-black flex flex-col items-center justify-center relative overflow-hidden">
+      {/* Cinematic photo backdrop. Heavy darkening overlay keeps the form
+          legible without obscuring the atmosphere. */}
+      <div
+        className="absolute inset-0 bg-cover bg-center"
+        style={{ backgroundImage: `url("${BASE_PATH}/portal-art/login-bay.jpg")` }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/65 to-black/85" />
+      <div className="absolute inset-0 bg-rpm-black/30" />
 
       {/* Logo */}
       <div className="relative z-10 mb-8">
