@@ -13,6 +13,7 @@ import {
   Settings,
   LogOut,
   ChevronRight,
+  ChevronDown,
   Shield,
   Calendar,
   CalendarPlus,
@@ -38,30 +39,37 @@ interface SessionUser {
   role: 'customer' | 'admin';
 }
 
+// CUSTOMER nav: 5 daily items + Settings. Vehicles/Jobs/Quotes are folded
+// into "My Garage" (a single page). Rewards lives inside Settings.
 const customerNav = [
   { href: '/portal/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/portal/book', label: 'Book Service', icon: CalendarPlus },
-  { href: '/portal/vehicles', label: 'My Vehicles', icon: Car },
-  { href: '/portal/jobs', label: 'My Jobs', icon: Wrench },
-  { href: '/portal/quotes', label: 'Quotes', icon: FileText },
+  { href: '/portal/book', label: 'Book', icon: CalendarPlus },
+  { href: '/portal/garage', label: 'My Garage', icon: Car },
   { href: '/portal/messages', label: 'Messages', icon: MessageSquare },
-  { href: '/portal/invoices', label: 'Invoices', icon: Receipt },
-  { href: '/portal/rewards', label: 'Rewards', icon: Gift },
+  { href: '/portal/invoices', label: 'Pay', icon: Receipt },
   { href: '/portal/settings', label: 'Settings', icon: Settings },
 ] as const;
 
+// ADMIN daily nav: 5 things Alex touches every day. Everything else (catalog,
+// inventory, campaigns, templates, reports, team, bay, reviews) lives behind
+// the "More" drawer to keep the chrome out of his way.
 const adminNav = [
-  { href: '/portal/admin', label: 'Admin', icon: Shield },
+  { href: '/portal/admin', label: 'Today', icon: Shield },
   { href: '/portal/admin/schedule', label: 'Schedule', icon: Calendar },
-  { href: '/portal/admin/invoices', label: 'Invoices', icon: Receipt },
-  { href: '/portal/admin/messages', label: 'Messages', icon: MessageSquare },
+  { href: '/portal/admin/messages', label: 'Inbox', icon: MessageSquare },
+  { href: '/portal/admin/invoices', label: 'Money', icon: Receipt },
+  { href: '/portal/admin/customers', label: 'Customers', icon: Users },
+] as const;
+
+const adminMoreNav = [
+  { href: '/portal/admin/bay', label: 'Bay (Tech)', icon: HardHat },
   { href: '/portal/admin/reports', label: 'Reports', icon: BarChart3 },
   { href: '/portal/admin/catalog', label: 'Catalog', icon: Tag },
   { href: '/portal/admin/inventory', label: 'Inventory', icon: Package },
+  { href: '/portal/admin/templates', label: 'Templates', icon: FileText },
   { href: '/portal/admin/campaigns', label: 'Campaigns', icon: Megaphone },
+  { href: '/portal/admin/reviews', label: 'Reviews', icon: Gift },
   { href: '/portal/admin/team', label: 'Team', icon: Users },
-  { href: '/portal/admin/bay', label: 'Bay (Tech)', icon: HardHat },
-  ...customerNav,
 ] as const;
 
 
@@ -137,7 +145,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           <span className="text-rpm-white font-bold text-lg tracking-wide">RPM Auto Lab</span>
         </Link>
 
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {nav.map((item) => {
             const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
             return (
@@ -157,6 +165,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               </Link>
             );
           })}
+          {user?.role === 'admin' && <AdminMoreSection pathname={pathname} />}
         </nav>
 
         <div className="px-4 py-4 border-t border-rpm-gray/50">
@@ -226,7 +235,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   </svg>
                 </button>
               </div>
-              <nav className="flex-1 px-3 py-4 space-y-1">
+              <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
                 {nav.map((item) => {
                   const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
                   return (
@@ -246,6 +255,28 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                     </Link>
                   );
                 })}
+                {user?.role === 'admin' && (
+                  <div className="pt-3 mt-3 border-t border-rpm-gray/40">
+                    <div className="px-4 mb-2 text-[10px] uppercase tracking-wider text-rpm-silver/60 font-bold">More</div>
+                    {adminMoreNav.map((item) => {
+                      const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setMobileOpen(false)}
+                          className={cn(
+                            'flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-all duration-200',
+                            isActive ? 'bg-rpm-red/10 text-rpm-red' : 'text-rpm-silver hover:text-rpm-white hover:bg-rpm-gray/50'
+                          )}
+                        >
+                          <item.icon className="w-4 h-4" />
+                          {item.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
               </nav>
               <div className="px-4 py-4 border-t border-rpm-gray/50">
                 <div className="flex items-center gap-3 mb-3">
@@ -307,6 +338,45 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         )}
         <div className="p-4 sm:p-6 lg:p-8">{children}</div>
       </main>
+    </div>
+  );
+}
+
+function AdminMoreSection({ pathname }: { pathname: string | null }) {
+  // Default-collapsed sub-nav for admin tools that aren't part of the daily
+  // workflow. Auto-expands if the user is currently inside one of them so
+  // they can see where they are.
+  const containsActive = adminMoreNav.some((i) => pathname === i.href || pathname?.startsWith(i.href + '/'));
+  const [open, setOpen] = useState(containsActive);
+  return (
+    <div className="pt-3 mt-3 border-t border-rpm-gray/40">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-4 py-2 text-[10px] uppercase tracking-wider text-rpm-silver/70 font-bold hover:text-rpm-white"
+      >
+        <span>More tools</span>
+        <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div className="mt-1 space-y-1">
+          {adminMoreNav.map((item) => {
+            const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  'flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all duration-200',
+                  isActive ? 'bg-rpm-red/10 text-rpm-red' : 'text-rpm-silver hover:text-rpm-white hover:bg-rpm-gray/50'
+                )}
+              >
+                <item.icon className="w-4 h-4" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

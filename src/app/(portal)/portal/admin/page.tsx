@@ -73,9 +73,15 @@ const label = (s: string) => {
   }
 };
 
+function isToday(iso?: string | null): boolean {
+  if (!iso) return false;
+  const d = new Date(iso);
+  const t = new Date();
+  return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate();
+}
+
 export default function AdminPage() {
   const [data, setData] = useState<Overview | null>(null);
-  const [tab, setTab] = useState<'customers' | 'quotes' | 'jobs'>('jobs');
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -92,21 +98,22 @@ export default function AdminPage() {
   if (err) return <div className="text-rpm-red text-sm">{err}</div>;
   if (!data) return null;
 
-  const totals = {
-    jobs: data.jobs.length,
-    quotes: data.quotes.length,
-    customers: data.customers.length,
-    activeJobs: data.jobs.filter((j) => j.status === 'scheduled' || j.status === 'in_progress').length,
-    pendingQuotes: data.quotes.filter((q) => q.status === 'submitted').length,
-  };
+  const todaysJobs = data.jobs
+    .filter((j) => isToday(j.scheduledAt) && j.status !== 'cancelled' && j.status !== 'picked_up')
+    .sort((a, b) => (a.scheduledAt || '').localeCompare(b.scheduledAt || ''));
+
+  const inProgress = data.jobs.filter((j) => j.status === 'in_progress');
+  const pendingQuotes = data.quotes.filter((q) => q.status === 'submitted');
+  const overdueInvoices = data.jobs.filter((j) => j.invoice && j.invoice.balanceCents > 0).length;
+  const activeJobs = data.jobs.filter((j) => j.status === 'scheduled' || j.status === 'in_progress').length;
 
   return (
     <div className="space-y-6">
       <PortalHero
         imageFile="admin-hero.jpg"
         eyebrow="Shop"
-        title="Today on the floor"
-        subtitle={`${totals.activeJobs} active jobs, ${totals.pendingQuotes} pending quotes.`}
+        title="Today"
+        subtitle={`${todaysJobs.length} on the schedule · ${pendingQuotes.length} new quotes · ${inProgress.length} on the floor right now.`}
       />
 
       <motion.div
@@ -115,34 +122,50 @@ export default function AdminPage() {
         variants={{ hidden: {}, show: { transition: { staggerChildren: 0.05 } } }}
         className="grid grid-cols-2 md:grid-cols-4 gap-3"
       >
-        <MiniStat label="Customers" value={totals.customers} />
-        <MiniStat label="Jobs" value={totals.jobs} />
-        <MiniStat label="Active" value={totals.activeJobs} accent="amber" />
-        <MiniStat label="Pending quotes" value={totals.pendingQuotes} accent="red" />
+        <Link href="/portal/admin/schedule" className="block"><MiniStat label="Today" value={todaysJobs.length} accent="amber" /></Link>
+        <Link href="#pending-quotes" className="block"><MiniStat label="New quotes" value={pendingQuotes.length} accent="red" /></Link>
+        <Link href="/portal/admin/invoices" className="block"><MiniStat label="Open balances" value={overdueInvoices} /></Link>
+        <Link href="/portal/admin/customers" className="block"><MiniStat label="Customers" value={data.customers.length} /></Link>
       </motion.div>
-
-      <div className="flex items-center gap-2 border-b border-rpm-gray/40">
-        {(['jobs', 'quotes', 'customers'] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={cn(
-              'px-4 py-2 text-sm font-semibold capitalize transition-colors border-b-2 -mb-px',
-              tab === t
-                ? 'text-rpm-red border-rpm-red'
-                : 'text-rpm-silver border-transparent hover:text-rpm-white'
-            )}
-          >
-            {t} ({data[t].length})
-          </button>
-        ))}
-      </div>
 
       <RemindersPanel />
 
-      {tab === 'jobs' && <JobsTab jobs={data.jobs} onChange={load} />}
-      {tab === 'quotes' && <QuotesTab quotes={data.quotes} customers={data.customers} onChange={load} />}
-      {tab === 'customers' && <CustomersTab customers={data.customers} />}
+      <section>
+        <header className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-bold text-rpm-white">Today&apos;s schedule</h2>
+          <Link href="/portal/admin/schedule" className="text-xs text-rpm-red hover:text-rpm-red-glow">Week view →</Link>
+        </header>
+        {todaysJobs.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-rpm-gray/40 p-6 text-rpm-silver/70 text-sm">
+            Nothing on the schedule today. Plan tomorrow in the <Link href="/portal/admin/schedule" className="text-rpm-red">week view</Link>.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {todaysJobs.map((j) => <JobCard key={j.id} job={j} onChange={load} />)}
+          </div>
+        )}
+      </section>
+
+      {pendingQuotes.length > 0 && (
+        <section id="pending-quotes">
+          <header className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-bold text-rpm-white">Quotes waiting on you</h2>
+            <span className="text-xs text-rpm-silver">{pendingQuotes.length} need{pendingQuotes.length === 1 ? 's' : ''} a price</span>
+          </header>
+          <div className="space-y-3">
+            {pendingQuotes.map((q) => <QuoteCard key={q.id} quote={q} customers={data.customers} onChange={load} />)}
+          </div>
+        </section>
+      )}
+
+      <section className="flex items-center gap-2 flex-wrap pt-4 border-t border-rpm-gray/30">
+        <span className="text-xs text-rpm-silver">Quick jump:</span>
+        <Link href="/portal/admin/schedule" className="px-3 py-1.5 rounded-lg border border-rpm-gray text-xs text-rpm-silver hover:text-rpm-white">Schedule</Link>
+        <Link href="/portal/admin/messages" className="px-3 py-1.5 rounded-lg border border-rpm-gray text-xs text-rpm-silver hover:text-rpm-white">Inbox</Link>
+        <Link href="/portal/admin/invoices" className="px-3 py-1.5 rounded-lg border border-rpm-gray text-xs text-rpm-silver hover:text-rpm-white">Money</Link>
+        <Link href="/portal/admin/customers" className="px-3 py-1.5 rounded-lg border border-rpm-gray text-xs text-rpm-silver hover:text-rpm-white">Customers</Link>
+        <Link href="/portal/admin/bay" className="px-3 py-1.5 rounded-lg border border-rpm-gray text-xs text-rpm-silver hover:text-rpm-white">Bay</Link>
+      </section>
     </div>
   );
 }
