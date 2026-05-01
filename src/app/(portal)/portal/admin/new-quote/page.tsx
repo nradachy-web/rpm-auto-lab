@@ -33,6 +33,11 @@ export default function NewQuotePage() {
   const [packages, setPackages] = useState<CatalogPackage[]>([]);
   const [busy, setBusy] = useState(false);
   const [vinDecoding, setVinDecoding] = useState(false);
+  // Optional same-step scheduling
+  const [scheduleNow, setScheduleNow] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState('');
+  const [scheduleTime, setScheduleTime] = useState('09:00');
+  const [scheduleDuration, setScheduleDuration] = useState('120');
 
   useEffect(() => {
     (async () => {
@@ -83,6 +88,12 @@ export default function NewQuotePage() {
       quotedAmount: parseInt(quotedAmount),
       notes: notes.trim() || undefined,
       source,
+      schedule: scheduleNow && scheduleDate
+        ? {
+            startAt: new Date(`${scheduleDate}T${scheduleTime}:00`).toISOString(),
+            durationMinutes: parseInt(scheduleDuration) || 120,
+          }
+        : undefined,
     });
     if (!res.ok || !res.data) {
       setBusy(false);
@@ -204,6 +215,30 @@ export default function NewQuotePage() {
           <input type="number" value={quotedAmount} onChange={(e) => setQuotedAmount(e.target.value)} placeholder="Quoted price (whole dollars)" className="flex-1 px-3 py-2 rounded-lg bg-rpm-charcoal border border-rpm-gray text-sm text-rpm-white" />
         </div>
         <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes for the customer + shop record" className="w-full px-3 py-2 rounded-lg bg-rpm-charcoal border border-rpm-gray text-sm text-rpm-white resize-none" />
+      </section>
+
+      <section className="rounded-xl border border-rpm-gray/40 bg-rpm-dark p-5 space-y-3">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={scheduleNow} onChange={(e) => setScheduleNow(e.target.checked)} className="w-4 h-4 accent-rpm-red" />
+          <span className="text-sm font-bold text-rpm-white">Schedule it now</span>
+          <span className="text-xs text-rpm-silver">Creates the job too — appears on Today + Schedule.</span>
+        </label>
+        {scheduleNow && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 pl-6">
+            <label className="text-xs text-rpm-silver">
+              Date
+              <input type="date" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} className="mt-1 w-full px-3 py-2 rounded-lg bg-rpm-charcoal border border-rpm-gray text-sm text-rpm-white" />
+            </label>
+            <label className="text-xs text-rpm-silver">
+              Time
+              <input type="time" value={scheduleTime} onChange={(e) => setScheduleTime(e.target.value)} className="mt-1 w-full px-3 py-2 rounded-lg bg-rpm-charcoal border border-rpm-gray text-sm text-rpm-white" />
+            </label>
+            <label className="text-xs text-rpm-silver">
+              Duration (min)
+              <input type="number" min={15} step={15} value={scheduleDuration} onChange={(e) => setScheduleDuration(e.target.value)} className="mt-1 w-full px-3 py-2 rounded-lg bg-rpm-charcoal border border-rpm-gray text-sm text-rpm-white" />
+            </label>
+          </div>
+        )}
       </section>
 
       <footer className="flex justify-end gap-2">

@@ -116,6 +116,16 @@ export default function AdminPage() {
         subtitle={`${todaysJobs.length} on the schedule · ${pendingQuotes.length} new quotes · ${inProgress.length} on the floor right now.`}
       />
 
+      <div className="flex items-center gap-2 flex-wrap">
+        <Link
+          href="/portal/admin/new-quote"
+          className="px-4 py-2 rounded-lg bg-rpm-red text-white text-sm font-bold hover:bg-rpm-red-dark"
+        >
+          + New customer / job
+        </Link>
+        <span className="text-xs text-rpm-silver">Phone, walk-in, or in-person — quote alone, or schedule the job in the same form.</span>
+      </div>
+
       <motion.div
         initial="hidden"
         animate="show"

@@ -334,6 +334,12 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         {user?.role === 'admin' && (
           <div className="hidden lg:flex items-center gap-3 px-6 py-3 border-b border-rpm-gray/40 bg-rpm-charcoal/40 sticky top-0 z-30 backdrop-blur">
             <GlobalSearch />
+            <Link
+              href="/portal/admin/new-quote"
+              className="ml-auto px-3 py-2 rounded-lg bg-rpm-red text-white text-sm font-bold hover:bg-rpm-red-dark whitespace-nowrap"
+            >
+              + New customer / job
+            </Link>
           </div>
         )}
         <div className="p-4 sm:p-6 lg:p-8">{children}</div>

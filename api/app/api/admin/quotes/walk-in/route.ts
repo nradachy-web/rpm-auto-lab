@@ -29,6 +29,13 @@ const schema = z.object({
   quotedAmount: z.number().int().nonnegative(),
   notes: z.string().max(2000).optional(),
   source: z.enum(["phone", "walkin", "referral", "in_person", "other"]).default("phone"),
+  // Optional: schedule the job in the same step.
+  schedule: z.object({
+    startAt: z.string().datetime(),
+    durationMinutes: z.number().int().positive().default(120),
+    bayId: z.string().nullable().optional(),
+    technicianId: z.string().nullable().optional(),
+  }).optional(),
 });
 
 export const POST = withCors(async (req) => {
@@ -89,9 +96,36 @@ export const POST = withCors(async (req) => {
       },
     });
 
+    // Optionally schedule a Job in the same step.
+    let jobId: string | null = null;
+    if (parsed.data.schedule) {
+      const start = new Date(parsed.data.schedule.startAt);
+      const dur = parsed.data.schedule.durationMinutes;
+      const end = new Date(start.getTime() + dur * 60 * 1000);
+      const job = await prisma.job.create({
+        data: {
+          userId: user.id,
+          vehicleId: veh.id,
+          quoteId: quote.id,
+          services,
+          status: "scheduled",
+          scheduledAt: start,
+          scheduledStartAt: start,
+          scheduledEndAt: end,
+          durationMinutes: dur,
+          bayId: parsed.data.schedule.bayId ?? null,
+          technicianId: parsed.data.schedule.technicianId ?? null,
+        },
+      });
+      // Mark the quote as converted now that the job exists.
+      await prisma.quote.update({ where: { id: quote.id }, data: { status: "converted" } });
+      jobId = job.id;
+    }
+
     return json({
       ok: true,
       quoteId: quote.id,
+      jobId,
       userId: user.id,
       vehicleId: veh.id,
       setPasswordUrl,                   // for the welcome email if account is new
