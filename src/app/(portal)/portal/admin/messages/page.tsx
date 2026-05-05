@@ -36,6 +36,7 @@ function AdminMessagesInner() {
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [drafting, setDrafting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const loadThreads = useCallback(async () => {
@@ -56,15 +57,32 @@ function AdminMessagesInner() {
   useEffect(() => {
     if (activeId) loadActive(activeId);
   }, [activeId, loadActive]);
+  // Polling with simple in-flight guard so slow responses don't pile up.
+  // Skips when document is hidden to save the user's bandwidth and Vercel
+  // function invocations.
   useEffect(() => {
-    const id = setInterval(() => {
-      loadThreads();
-      if (activeId) loadActive(activeId);
-    }, 10000);
+    let inflight = false;
+    const tick = async () => {
+      if (inflight || (typeof document !== 'undefined' && document.hidden)) return;
+      inflight = true;
+      try {
+        await loadThreads();
+        if (activeId) await loadActive(activeId);
+      } finally {
+        inflight = false;
+      }
+    };
+    const id = setInterval(tick, 10000);
     return () => clearInterval(id);
   }, [loadThreads, loadActive, activeId]);
+
+  // Only auto-scroll when a NEW message comes in, not on every poll.
+  const lastCountRef = useRef(0);
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (messages.length > lastCountRef.current && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+    lastCountRef.current = messages.length;
   }, [messages.length]);
 
   const send = async () => {
@@ -144,16 +162,26 @@ function AdminMessagesInner() {
                 <div className="flex flex-col gap-1">
                   <button
                     type="button"
+                    disabled={drafting}
                     onClick={async () => {
+                      setDrafting(true);
                       const res = await api.post<{ suggestion: string }>('/api/admin/ai/draft-reply', { threadId: activeId });
-                      if (!res.ok) { alert(res.error || 'AI not available'); return; }
+                      setDrafting(false);
+                      if (!res.ok) {
+                        if (res.status === 503) {
+                          alert('AI drafter is not configured. Set ANTHROPIC_API_KEY in Vercel to enable.');
+                        } else {
+                          alert(res.error || 'AI not available');
+                        }
+                        return;
+                      }
                       if (res.data?.suggestion) setText(res.data.suggestion);
                     }}
-                    className="px-3 py-1.5 rounded-lg border border-rpm-gray text-xs text-rpm-silver hover:text-rpm-white flex items-center gap-1"
+                    className="px-3 py-1.5 rounded-lg border border-rpm-gray text-xs text-rpm-silver hover:text-rpm-white flex items-center gap-1 disabled:opacity-50"
                     title="Draft a reply with AI"
                   >
                     <Sparkles className="w-3 h-3" />
-                    Draft
+                    {drafting ? '…' : 'Draft'}
                   </button>
                   <button type="submit" disabled={sending || !text.trim()} className="px-4 py-2 rounded-lg bg-rpm-red text-white font-bold disabled:opacity-50 flex items-center gap-1">
                     <Send className="w-4 h-4" />

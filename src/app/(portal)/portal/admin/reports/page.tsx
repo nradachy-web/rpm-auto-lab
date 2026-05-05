@@ -75,14 +75,25 @@ export default function ReportsPage() {
             ))}
           </div>
           {report && (
-            <a
-              href={`${API_BASE}/api/admin/exports/quickbooks?from=${encodeURIComponent(report.range.from)}&to=${encodeURIComponent(report.range.to)}`}
-              className="px-3 py-1.5 rounded-lg border border-rpm-gray text-xs font-bold text-rpm-silver hover:text-rpm-white flex items-center gap-1"
-              title="Download CSV importable by QuickBooks Online"
-            >
-              <Download className="w-3.5 h-3.5" />
-              QuickBooks CSV
-            </a>
+            report.paymentCount === 0 ? (
+              <button
+                disabled
+                title="No invoices in this range — nothing to export"
+                className="px-3 py-1.5 rounded-lg border border-rpm-gray/40 text-xs font-bold text-rpm-silver/40 flex items-center gap-1 cursor-not-allowed"
+              >
+                <Download className="w-3.5 h-3.5" />
+                QuickBooks CSV
+              </button>
+            ) : (
+              <a
+                href={`${API_BASE}/api/admin/exports/quickbooks?from=${encodeURIComponent(report.range.from)}&to=${encodeURIComponent(report.range.to)}`}
+                className="px-3 py-1.5 rounded-lg border border-rpm-gray text-xs font-bold text-rpm-silver hover:text-rpm-white flex items-center gap-1"
+                title="Download CSV importable by QuickBooks Online"
+              >
+                <Download className="w-3.5 h-3.5" />
+                QuickBooks CSV
+              </a>
+            )
           )}
         </div>
       </header>

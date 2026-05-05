@@ -143,6 +143,10 @@ model User {
   // Free-text shop notes — admin-only.
   notes              String?
 
+  // Soft-delete: archived customers stay in the DB for accounting integrity
+  // but are hidden from lists, search, campaigns, and reminders.
+  archivedAt         DateTime?
+
   // Referral / loyalty
   referralCode       String?   @unique
   referredById       String?
@@ -226,14 +230,45 @@ model Quote {
   source         String?
   utmJson        Json?
 
+  // PPF/coating-specific: which body panels are covered. Stored as
+  // { "front-bumper": "ppf", "hood": "ppf", "fenders": "ppf", ... } so the
+  // customer-facing quote diagram can render the choices visually.
+  partsDiagram   Json?
+
+  // Public token for the customer-facing quote-acceptance page.
+  publicToken    String? @unique
+  acceptedAt     DateTime?
+  selectedOptionId String?  // chosen QuotePackageOption.id when multi-tier
+
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   vehicle     Vehicle      @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
   jobs        Job[]
   jobTemplate JobTemplate? @relation(fields: [jobTemplateId], references: [id], onDelete: SetNull)
+  options     QuotePackageOption[]
 
   @@index([userId])
   @@index([status])
   @@index([source])
+  @@index([publicToken])
+}
+
+// Multi-tier quote options. Real PPF/coating shops quote 2-3 packages
+// side by side (Front End / Track Pack / Full Body) and the customer
+// picks one before scheduling.
+model QuotePackageOption {
+  id          String   @id @default(cuid())
+  quoteId     String
+  name        String   // "Front End PPF"
+  description String?
+  priceCents  Int
+  durationMinutes Int?
+  recommended Boolean  @default(false)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId])
 }
 
 model Job {
@@ -259,6 +294,13 @@ model Job {
   pickedUpAt         DateTime?
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
+
+  // Cure window — used by the customer-facing tracker to show
+  // "do not wash for X days/hours" countdown after completion. Computed
+  // from completedAt + service-specific cure hours when status flips to
+  // completed.
+  cureUntil          DateTime?
+  cureKind           String?    // "ppf" | "ceramic-coating" | "window-tint" | "vehicle-wraps"
 
   // Wiring
   invoiceId          String?    @unique

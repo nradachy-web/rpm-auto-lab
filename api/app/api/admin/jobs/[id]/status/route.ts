@@ -4,6 +4,7 @@ import { requireAdmin, AuthError } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { rulesForServices } from "@/lib/reminders";
 import { sendSms, SMS_TEMPLATES } from "@/lib/twilio";
+import { computeCure } from "@/lib/cure";
 
 const PUBLIC_SITE = process.env.PUBLIC_ORIGIN ?? "https://nradachy-web.github.io";
 const PUBLIC_BASE = PUBLIC_SITE.endsWith("/") ? `${PUBLIC_SITE}rpm-auto-lab` : `${PUBLIC_SITE}/rpm-auto-lab`;
@@ -49,12 +50,21 @@ export const PATCH = withCors(async (req) => {
       startedAt?: Date;
       completedAt?: Date;
       pickedUpAt?: Date;
+      cureUntil?: Date | null;
+      cureKind?: string | null;
     } = {
       status,
       adminNote: note ?? existing.adminNote,
       events: { create: { fromStatus: existing.status, toStatus: status, note: note ?? null } },
     };
     if (stampKey) updateData[stampKey] = new Date();
+    // On completion, compute the cure window so the customer tracker
+    // shows the "do not wash" countdown.
+    if (status === "completed" && !existing.completedAt) {
+      const cure = computeCure(existing.services, new Date());
+      updateData.cureUntil = cure.cureUntil;
+      updateData.cureKind = cure.cureKind;
+    }
 
     const updated = await prisma.job.update({
       where: { id },

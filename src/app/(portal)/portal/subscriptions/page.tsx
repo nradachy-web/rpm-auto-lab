@@ -111,6 +111,11 @@ function SubsInner() {
 
       <section>
         <h2 className="text-xs uppercase tracking-wider font-bold text-rpm-silver mb-2">Available plans</h2>
+        {plans.length === 0 && (
+          <div className="rounded-xl border border-dashed border-rpm-gray/40 p-6 text-rpm-silver/70 text-sm">
+            No subscription plans available right now. Check back soon, or message the shop for a custom plan.
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {plans.map((p) => (
             <article key={p.slug} className="rounded-xl border border-rpm-gray/40 bg-rpm-dark p-5 flex flex-col">

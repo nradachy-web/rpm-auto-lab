@@ -37,18 +37,26 @@ interface WelcomeArgs {
   setPasswordUrl?: string | null;
   quoteSummary: string;
   portalUrl: string;
+  publicQuoteUrl?: string | null;
 }
 
 export async function sendWelcomeQuote(a: WelcomeArgs): Promise<void> {
   const lines: string[] = [
     `Hi ${a.name},`,
     "",
-    "Thanks for requesting a quote from RPM Auto Lab. Your request is in our queue and we'll be in touch within 24 hours with a detailed number.",
+    "Thanks for requesting a quote from RPM Auto Lab.",
     "",
   ];
+  if (a.publicQuoteUrl) {
+    lines.push(
+      "Review and accept your quote here:",
+      a.publicQuoteUrl,
+      "",
+    );
+  }
   if (a.setPasswordUrl) {
     lines.push(
-      "We've also set up a customer account for you so you can track your quote and job status in real time:",
+      "We've also set up a customer account so you can track your quote and job status in real time:",
       "",
       a.setPasswordUrl,
       "",
@@ -69,7 +77,7 @@ export async function sendWelcomeQuote(a: WelcomeArgs): Promise<void> {
     "",
     "RPM Auto Lab",
   );
-  await send(a.to, { subject: "Your RPM Auto Lab quote request", message: lines.join("\n") });
+  await send(a.to, { subject: "Your RPM Auto Lab quote", message: lines.join("\n") });
 }
 
 interface AdminAlertArgs {

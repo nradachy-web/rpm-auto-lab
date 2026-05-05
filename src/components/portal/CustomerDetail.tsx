@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { X, MessageSquare, Receipt, Wrench, Car, Plus, StickyNote, Trash2, Mail, Phone } from 'lucide-react';
+import { X, MessageSquare, Receipt, Wrench, Car, Plus, StickyNote, Trash2, Mail, Phone, Archive, ArchiveRestore } from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -29,6 +29,7 @@ interface Subscription {
 interface CustomerFull {
   id: string; name: string; email: string; phone?: string | null; notes?: string | null;
   smsConsent: boolean; pushConsent: boolean;
+  archivedAt?: string | null;
   loyaltyPoints: number; referralCode?: string | null; createdAt: string;
   vehicles: Vehicle[]; quotes: Quote[]; jobs: Job[]; invoices: Invoice[];
   subscriptions: Subscription[];
@@ -91,6 +92,23 @@ export default function CustomerDetail({ id, onClose, onDeleted }: { id: string;
     onClose();
   };
 
+  const toggleArchive = async () => {
+    if (!c) return;
+    const archiving = !c.archivedAt;
+    if (archiving && !window.confirm(
+      `Archive ${c.name}? They'll be hidden from the customer list, search, and campaigns. ` +
+      `Their accounting history stays intact and you can restore them anytime.`
+    )) return;
+    const res = await api.patch(`/api/admin/customers/${c.id}`, { archived: archiving });
+    if (!res.ok) {
+      alert(res.error || 'Could not update customer');
+      return;
+    }
+    onDeleted?.(); // refresh parent list
+    if (archiving) onClose();
+    else load();
+  };
+
   const ltv = c ? c.invoices.reduce((s, i) => s + i.paidCents, 0) : 0;
   const balance = c ? c.invoices.reduce((s, i) => s + i.balanceCents, 0) : 0;
 
@@ -117,6 +135,7 @@ export default function CustomerDetail({ id, onClose, onDeleted }: { id: string;
                 </div>
                 <div className="text-[11px] uppercase tracking-wider text-rpm-silver/70 mt-1">
                   Joined {fmtDate(c.createdAt)} · {c.smsConsent ? 'SMS opted-in' : 'SMS off'} · {c.referralCode || '— no code'}
+                  {c.archivedAt && <span className="ml-2 px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[10px]">Archived</span>}
                 </div>
               </div>
               <button onClick={onClose} aria-label="Close" className="text-rpm-silver hover:text-rpm-white p-1">
@@ -267,12 +286,20 @@ export default function CustomerDetail({ id, onClose, onDeleted }: { id: string;
                   <Plus className="w-4 h-4" /> New quote / job
                 </Link>
               </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={toggleArchive}
+                  className={`px-3 py-2 rounded-lg border text-sm flex items-center gap-1 ${c.archivedAt ? 'border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10' : 'border-rpm-gray text-rpm-silver hover:text-rpm-white'}`}
+                >
+                  {c.archivedAt ? <><ArchiveRestore className="w-4 h-4" /> Restore</> : <><Archive className="w-4 h-4" /> Archive</>}
+                </button>
               <button
                 onClick={() => setConfirmDelete(true)}
                 className="px-3 py-2 rounded-lg border border-rpm-red/40 text-sm text-rpm-red hover:bg-rpm-red/10 flex items-center gap-1"
               >
                 <Trash2 className="w-4 h-4" /> Delete
               </button>
+              </div>
             </section>
           </div>
         )}

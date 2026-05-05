@@ -29,6 +29,14 @@ const schema = z.object({
   quotedAmount: z.number().int().nonnegative(),
   notes: z.string().max(2000).optional(),
   source: z.enum(["google", "facebook", "instagram", "referral", "website", "phone", "walkin", "in_person", "other"]).default("phone"),
+  partsDiagram: z.record(z.string()).optional(),
+  options: z.array(z.object({
+    name: z.string().min(1).max(80),
+    description: z.string().max(280).optional(),
+    priceCents: z.number().int().nonnegative(),
+    durationMinutes: z.number().int().positive().optional(),
+    recommended: z.boolean().optional(),
+  })).optional(),
   // Optional: schedule the job in the same step.
   schedule: z.object({
     startAt: z.string().datetime(),
@@ -82,6 +90,7 @@ export const POST = withCors(async (req) => {
     }
 
     // Create the quote, already priced + responded.
+    const publicToken = generateToken();
     const quote = await prisma.quote.create({
       data: {
         userId: user.id,
@@ -93,6 +102,18 @@ export const POST = withCors(async (req) => {
         status: "quoted",
         respondedAt: new Date(),
         source,
+        partsDiagram: parsed.data.partsDiagram ?? undefined,
+        publicToken,
+        options: parsed.data.options && parsed.data.options.length > 0 ? {
+          create: parsed.data.options.map((o, i) => ({
+            name: o.name,
+            description: o.description,
+            priceCents: o.priceCents,
+            durationMinutes: o.durationMinutes,
+            recommended: o.recommended ?? false,
+            sortOrder: i,
+          })),
+        } : undefined,
       },
     });
 
@@ -130,6 +151,7 @@ export const POST = withCors(async (req) => {
       vehicleId: veh.id,
       setPasswordUrl,                   // for the welcome email if account is new
       portalUrl: `${PUBLIC_BASE}/portal/quotes`,
+      publicQuoteUrl: `${PUBLIC_BASE}/portal/quote-accept?token=${encodeURIComponent(publicToken)}`,
     });
   } catch (e) {
     if (e instanceof AuthError) return json({ error: e.code }, { status: e.code === "UNAUTHENTICATED" ? 401 : 403 });

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Phone, Send } from 'lucide-react';
 import { api } from '@/lib/api';
 import { sendWelcomeQuote, sendAdminQuoteAlert, CUSTOMER_PORTAL_URL, SHOP_INBOX } from '@/lib/email-client';
+import PartsDiagram, { type DiagramValue } from '@/components/portal/PartsDiagram';
 
 type SizeTier = 'compact' | 'sedan' | 'suv' | 'truck' | 'oversize' | 'motorcycle' | 'boat' | 'rv';
 
@@ -69,6 +70,10 @@ function NewQuoteInner() {
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleTime, setScheduleTime] = useState('09:00');
   const [scheduleDuration, setScheduleDuration] = useState('120');
+  // PPF/coating coverage diagram + multi-package options
+  const [coverage, setCoverage] = useState<DiagramValue>({});
+  const [showDiagram, setShowDiagram] = useState(false);
+  const [extraOptions, setExtraOptions] = useState<{ name: string; price: string; recommended: boolean }[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -126,6 +131,7 @@ function NewQuoteInner() {
       quoteId: string;
       setPasswordUrl: string | null;
       portalUrl: string;
+      publicQuoteUrl?: string;
     }>('/api/admin/quotes/walk-in', {
       name: name.trim(),
       email: email.trim(),
@@ -144,6 +150,14 @@ function NewQuoteInner() {
       quotedAmount: parseInt(quotedAmount),
       notes: notes.trim() || undefined,
       source,
+      partsDiagram: Object.keys(coverage).length > 0 ? coverage : undefined,
+      options: extraOptions
+        .filter((o) => o.name.trim() && o.price)
+        .map((o) => ({
+          name: o.name.trim(),
+          priceCents: Math.round(parseFloat(o.price) * 100) || 0,
+          recommended: o.recommended,
+        })),
       schedule: scheduleNow && scheduleDate
         ? {
             startAt: new Date(`${scheduleDate}T${scheduleTime}:00`).toISOString(),
@@ -159,6 +173,7 @@ function NewQuoteInner() {
     // Fire emails client-side via Web3Forms (server-side blocked on free).
     const vehicleStr = [year, make, model, trim].filter(Boolean).join(' ');
     const summary = `${vehicleStr}\nServices: ${Array.from(services).join(', ')}\nQuoted: $${parseInt(quotedAmount).toLocaleString()}`;
+    let emailFailed = false;
     try {
       await sendWelcomeQuote({
         to: email,
@@ -166,6 +181,7 @@ function NewQuoteInner() {
         setPasswordUrl: res.data.setPasswordUrl,
         quoteSummary: summary,
         portalUrl: CUSTOMER_PORTAL_URL,
+        publicQuoteUrl: res.data.publicQuoteUrl ?? null,
       });
       await sendAdminQuoteAlert({
         to: SHOP_INBOX,
@@ -179,8 +195,15 @@ function NewQuoteInner() {
       });
     } catch (e) {
       console.warn('Email send failed:', e);
+      emailFailed = true;
     }
     setBusy(false);
+    if (emailFailed) {
+      alert(
+        `Quote saved, but the customer email failed to send. ` +
+        `You may want to follow up manually at ${email}.`
+      );
+    }
     router.push('/portal/admin');
   };
 
@@ -224,7 +247,13 @@ function NewQuoteInner() {
           <h2 className="text-xs uppercase tracking-wider font-bold text-rpm-silver">Vehicle</h2>
           <div className="flex items-center gap-1">
             <input value={vin} onChange={(e) => setVin(e.target.value.toUpperCase())} placeholder="VIN (optional, auto-fills)" className="px-2 py-1 rounded-md bg-rpm-charcoal border border-rpm-gray text-xs text-rpm-white font-mono w-56" />
-            <button type="button" onClick={decodeVin} disabled={vinDecoding || vin.trim().length < 11} className="px-2 py-1 rounded-md border border-rpm-gray text-xs text-rpm-silver hover:text-rpm-white disabled:opacity-50">
+            <button
+              type="button"
+              onClick={decodeVin}
+              disabled={vinDecoding || vin.trim().length < 11}
+              title={vin.trim().length < 11 ? 'Enter at least 11 characters of the VIN' : 'Decode via NHTSA'}
+              className="px-2 py-1 rounded-md border border-rpm-gray text-xs text-rpm-silver hover:text-rpm-white disabled:opacity-50"
+            >
               {vinDecoding ? '…' : 'Decode'}
             </button>
           </div>
@@ -271,6 +300,57 @@ function NewQuoteInner() {
           <input type="number" value={quotedAmount} onChange={(e) => setQuotedAmount(e.target.value)} placeholder="Quoted price (whole dollars)" className="flex-1 px-3 py-2 rounded-lg bg-rpm-charcoal border border-rpm-gray text-sm text-rpm-white" />
         </div>
         <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes for the customer + shop record" className="w-full px-3 py-2 rounded-lg bg-rpm-charcoal border border-rpm-gray text-sm text-rpm-white resize-none" />
+      </section>
+
+      <section className="rounded-xl border border-rpm-gray/40 bg-rpm-dark p-5 space-y-3">
+        <header className="flex items-center justify-between">
+          <h2 className="text-xs uppercase tracking-wider font-bold text-rpm-silver">Coverage diagram (optional)</h2>
+          <button type="button" onClick={() => setShowDiagram(!showDiagram)} className="text-xs text-rpm-silver hover:text-rpm-white">
+            {showDiagram ? 'Hide' : Object.keys(coverage).length > 0 ? `${Object.keys(coverage).length} panels — Edit` : 'Add'}
+          </button>
+        </header>
+        {showDiagram && (
+          <div>
+            <p className="text-xs text-rpm-silver mb-2">Mark which panels are covered. Customer sees this on their quote.</p>
+            <PartsDiagram value={coverage} onChange={setCoverage} />
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-xl border border-rpm-gray/40 bg-rpm-dark p-5 space-y-3">
+        <header className="flex items-center justify-between">
+          <h2 className="text-xs uppercase tracking-wider font-bold text-rpm-silver">Alternative packages (optional)</h2>
+          <button type="button" onClick={() => setExtraOptions([...extraOptions, { name: '', price: '', recommended: false }])} className="text-xs text-rpm-silver hover:text-rpm-white">
+            + Add another option
+          </button>
+        </header>
+        <p className="text-xs text-rpm-silver">
+          Customer compares packages side-by-side and picks one. The price above stays the default.
+        </p>
+        <div className="space-y-2">
+          {extraOptions.map((o, idx) => (
+            <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+              <input value={o.name} onChange={(e) => {
+                const n = [...extraOptions]; n[idx].name = e.target.value; setExtraOptions(n);
+              }} placeholder="Option name (e.g. Front End PPF)" className="col-span-6 px-3 py-1.5 rounded-md bg-rpm-charcoal border border-rpm-gray text-sm text-rpm-white" />
+              <div className="col-span-3 flex items-center gap-1">
+                <span className="text-rpm-silver text-sm">$</span>
+                <input type="number" value={o.price} onChange={(e) => {
+                  const n = [...extraOptions]; n[idx].price = e.target.value; setExtraOptions(n);
+                }} placeholder="Price" className="flex-1 px-2 py-1.5 rounded-md bg-rpm-charcoal border border-rpm-gray text-sm text-rpm-white" />
+              </div>
+              <label className="col-span-2 text-[11px] text-rpm-silver flex items-center gap-1">
+                <input type="checkbox" checked={o.recommended} onChange={(e) => {
+                  const n = [...extraOptions]; n[idx].recommended = e.target.checked; setExtraOptions(n);
+                }} />
+                Recommend
+              </label>
+              <button type="button" onClick={() => setExtraOptions(extraOptions.filter((_, i) => i !== idx))} className="col-span-1 text-rpm-silver hover:text-rpm-red text-xs">
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="rounded-xl border border-rpm-gray/40 bg-rpm-dark p-5 space-y-3">

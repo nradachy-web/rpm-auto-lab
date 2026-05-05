@@ -20,6 +20,8 @@ interface JobDetail {
   startedAt?: string | null;
   completedAt?: string | null;
   pickedUpAt?: string | null;
+  cureUntil?: string | null;
+  cureKind?: string | null;
   vehicle: Vehicle;
   photos: JobPhoto[];
   bay?: { name: string } | null;
@@ -147,6 +149,10 @@ function JobTrackerInner() {
         </section>
       )}
 
+      {job.cureUntil && (job.status === 'completed' || job.status === 'picked_up') && (
+        <CureCountdown cureUntil={job.cureUntil} cureKind={job.cureKind} now={now} />
+      )}
+
       {job.photos.length > 0 && (
         <section>
           <h2 className="text-xs uppercase tracking-wider font-bold text-rpm-silver mb-2">
@@ -160,5 +166,42 @@ function JobTrackerInner() {
         Updates every 30 seconds. Last refresh {new Date(now).toLocaleTimeString()}.
       </section>
     </div>
+  );
+}
+
+function CureCountdown({ cureUntil, cureKind, now }: { cureUntil: string; cureKind?: string | null; now: number }) {
+  const target = new Date(cureUntil).getTime();
+  const remaining = target - now;
+  const done = remaining <= 0;
+  const days = Math.floor(remaining / (24 * 60 * 60 * 1000));
+  const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+  const totalH = Math.max(1, Math.floor((target - new Date(cureUntil).getTime() + remaining) / (60 * 60 * 1000)));
+  const elapsedPct = Math.max(0, Math.min(100, 100 - (remaining / (totalH * 60 * 60 * 1000)) * 100));
+  const headline = (() => {
+    switch (cureKind) {
+      case 'ppf': return done ? 'PPF cure complete — wash away.' : 'Do not wash. PPF curing.';
+      case 'ceramic-coating': return done ? 'Ceramic cure complete — safe to wash.' : 'Do not wash. Ceramic coating curing.';
+      case 'window-tint': return done ? 'Tint cure complete — windows safe to roll down.' : 'Do not roll windows down. Tint curing.';
+      case 'vehicle-wraps': return done ? 'Wrap cure complete — wash away.' : 'Do not wash. Wrap curing.';
+      default: return done ? 'Service cure complete.' : 'Service curing.';
+    }
+  })();
+  return (
+    <section className={done ? 'rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-5' : 'rounded-2xl border border-amber-500/40 bg-amber-500/5 p-5'}>
+      <div className="text-xs uppercase tracking-wider font-bold text-rpm-silver">Cure window</div>
+      <div className={'text-lg font-black mt-1 ' + (done ? 'text-emerald-400' : 'text-amber-300')}>{headline}</div>
+      {!done && (
+        <>
+          <div className="mt-2 text-2xl font-black text-rpm-white tabular-nums">
+            {days > 0 && `${days}d `}
+            {hours}h remaining
+          </div>
+          <div className="mt-2 h-1.5 rounded-full bg-rpm-gray/30 overflow-hidden">
+            <div className="h-full bg-amber-400" style={{ width: `${elapsedPct}%` }} />
+          </div>
+          <div className="mt-2 text-[11px] text-rpm-silver">Safe to wash after {new Date(cureUntil).toLocaleString()}.</div>
+        </>
+      )}
+    </section>
   );
 }

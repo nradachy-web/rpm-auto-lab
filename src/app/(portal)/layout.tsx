@@ -76,7 +76,7 @@ const adminMoreNav = [
 // Path prefixes that don't require a session (set-password lives under /portal
 // because it needs to share the portal layout shell visually, but the user
 // isn't logged in until they submit).
-const PUBLIC_PORTAL_PATHS = ['/portal/set-password', '/portal/approve', '/portal/warranty'];
+const PUBLIC_PORTAL_PATHS = ['/portal/set-password', '/portal/approve', '/portal/warranty', '/portal/quote-accept'];
 
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/).slice(0, 2);

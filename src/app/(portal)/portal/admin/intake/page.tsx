@@ -158,12 +158,28 @@ function IntakeInner() {
       </section>
 
       <footer className="flex flex-wrap items-center justify-between gap-3">
-        <span className="text-xs text-rpm-silver">{savedAt && `Saved ${savedAt.toLocaleTimeString()}`}</span>
+        <div className="text-xs text-rpm-silver space-y-0.5">
+          {savedAt && <div>Saved {savedAt.toLocaleTimeString()}</div>}
+          {(beforePhotos.length === 0 || !signature || !signedByName.trim()) && (
+            <div className="text-amber-400">
+              Need to complete: {[
+                beforePhotos.length === 0 && 'at least 1 photo',
+                !signature && 'signature',
+                !signedByName.trim() && 'printed name',
+              ].filter(Boolean).join(', ')}
+            </div>
+          )}
+        </div>
         <div className="flex gap-2">
           <button onClick={() => save(false)} disabled={busy} className="px-3 py-2 rounded-lg border border-rpm-gray text-sm text-rpm-silver hover:text-rpm-white disabled:opacity-50">
             Save draft
           </button>
-          <button onClick={() => save(true)} disabled={busy || !signature || !signedByName.trim()} className="px-4 py-2 rounded-lg bg-rpm-red text-white font-bold disabled:opacity-50">
+          <button
+            onClick={() => save(true)}
+            disabled={busy || !signature || !signedByName.trim() || beforePhotos.length === 0}
+            title={beforePhotos.length === 0 ? 'Add at least one walkaround photo first' : 'Save the signed intake'}
+            className="px-4 py-2 rounded-lg bg-rpm-red text-white font-bold disabled:opacity-50"
+          >
             {busy ? 'Saving…' : 'Sign + complete'}
           </button>
         </div>

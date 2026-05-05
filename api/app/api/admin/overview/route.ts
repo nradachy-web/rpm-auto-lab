@@ -4,15 +4,19 @@ import { prisma } from "@/lib/db";
 
 export const runtime = "nodejs";
 
-export const GET = withCors(async () => {
+export const GET = withCors(async (req) => {
   try {
     await requireAdmin();
+    const url = new URL(req.url);
+    const includeArchived = url.searchParams.get("includeArchived") === "true";
     const [customers, quotes, jobs] = await Promise.all([
       prisma.user.findMany({
-        where: { role: "customer" },
+        where: includeArchived
+          ? { role: "customer" }
+          : { role: "customer", archivedAt: null },
         orderBy: { createdAt: "desc" },
         select: {
-          id: true, email: true, name: true, phone: true, createdAt: true, notes: true,
+          id: true, email: true, name: true, phone: true, createdAt: true, notes: true, archivedAt: true,
           _count: { select: { vehicles: true, quotes: true, jobs: true } },
         },
       }),

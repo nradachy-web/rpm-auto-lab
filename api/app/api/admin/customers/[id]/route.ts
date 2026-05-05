@@ -9,6 +9,7 @@ const patchSchema = z.object({
   notes: z.string().max(4000).nullable().optional(),
   name: z.string().min(1).max(120).optional(),
   phone: z.string().max(40).nullable().optional(),
+  archived: z.boolean().optional(),    // true = archive; false = restore
 });
 
 export const GET = withCors(async (req) => {
@@ -44,7 +45,10 @@ export const PATCH = withCors(async (req) => {
     try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, { status: 400 }); }
     const parsed = patchSchema.safeParse(body);
     if (!parsed.success) return json({ error: "Validation failed" }, { status: 400 });
-    const customer = await prisma.user.update({ where: { id }, data: parsed.data });
+    const { archived, ...rest } = parsed.data;
+    const data: Record<string, unknown> = { ...rest };
+    if (archived !== undefined) data.archivedAt = archived ? new Date() : null;
+    const customer = await prisma.user.update({ where: { id }, data });
     return json({ customer });
   } catch (e) {
     if (e instanceof AuthError) return json({ error: e.code }, { status: e.code === "UNAUTHENTICATED" ? 401 : 403 });
@@ -74,7 +78,7 @@ export const DELETE = withCors(async (req) => {
     const hasPayments = customer.invoices.some((i) => i.paidCents > 0);
     if (hasPayments) {
       return json({
-        error: "This customer has paid invoices and can't be deleted (would orphan accounting). Archive instead — coming soon.",
+        error: "This customer has paid invoices and can't be deleted (it would orphan accounting). Use Archive instead.",
       }, { status: 409 });
     }
 
