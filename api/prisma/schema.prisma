@@ -143,6 +143,11 @@ model User {
   // Free-text shop notes — admin-only.
   notes              String?
 
+  // External system mirror. urableId is set when the record came from
+  // (or has been linked to) the customer's row in Urable; lets the
+  // sync upsert without duplicates.
+  urableId           String?  @unique
+
   // Soft-delete: archived customers stay in the DB for accounting integrity
   // but are hidden from lists, search, campaigns, and reminders.
   archivedAt         DateTime?
@@ -193,6 +198,8 @@ model Vehicle {
   vin           String?
   sizeTier      VehicleSizeTier?
   notes         String?
+  // Linked Urable item id when the vehicle came from / matches Urable.
+  urableId      String?  @unique
   createdAt     DateTime @default(now())
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -320,6 +327,7 @@ model Job {
   reviewRequests  ReviewRequest[]
   reviews         Review[]
   intake          IntakeForm?
+  calendarEvent   JobCalendarEvent?
   changeOrders    ChangeOrder[]
 
   @@index([userId])
@@ -875,5 +883,70 @@ model Promotion {
   updatedAt       DateTime @updatedAt
 
   @@index([active, endsAt])
+}
+
+// ───────────── Google OAuth + integrations ─────────────
+// Single shop-level Google connection (Alex's account). Holds the refresh
+// token so the API can mint short-lived access tokens whenever it needs
+// to call Calendar, Business Profile, or Gmail.
+
+model GoogleConnection {
+  id                String    @id @default(cuid())
+  scope             String    @default("shop") @unique  // single shop-level row
+  googleEmail       String
+  googleSub         String    // Google's stable user id
+  refreshToken      String    // long-lived; used to mint access tokens
+  accessToken       String?   // short-lived cache
+  accessTokenExpiry DateTime?
+  scopes            String    // space-separated granted scopes
+  // Optional: the calendar to sync into. Defaults to "primary".
+  calendarId        String    @default("primary")
+  // Optional: the GBP location resource id (e.g. "locations/12345"); set
+  // by the admin on the Reviews integration page once known.
+  gbpLocationId     String?
+  // Optional: send transactional email "from" this address (Gmail send-as).
+  sendAsEmail       String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+// Google Calendar event mirror — one row per (jobId, calendarId) so we
+// can update / delete the event when the job changes.
+model JobCalendarEvent {
+  id            String   @id @default(cuid())
+  jobId         String   @unique
+  googleEventId String
+  calendarId    String
+  syncedAt      DateTime @default(now())
+  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+}
+
+// Imported Google reviews — kept in their own table so they don't mix
+// with internal portal reviews and can be re-synced without dupes.
+model GoogleReview {
+  id              String   @id @default(cuid())
+  googleReviewId  String   @unique
+  reviewerName    String
+  starRating      Int      // 1..5
+  comment         String?
+  createTime      DateTime
+  updateTime      DateTime?
+  reply           String?
+  importedAt      DateTime @default(now())
+
+  @@index([createTime])
+}
+
+// One row per sync run — used by the admin Integrations page to show
+// "last synced X minutes ago, Y customers, Z vehicles".
+model UrableSyncRun {
+  id              String   @id @default(cuid())
+  startedAt       DateTime @default(now())
+  finishedAt      DateTime?
+  customersUpserted Int    @default(0)
+  itemsUpserted   Int      @default(0)
+  errorText       String?
+
+  @@index([startedAt])
 }
 

@@ -30,6 +30,7 @@ import {
   Star,
   Store,
   Percent,
+  Plug,
 } from 'lucide-react';
 import { api, setAuthToken } from '@/lib/api';
 import GlobalSearch from '@/components/portal/GlobalSearch';
@@ -103,6 +104,7 @@ const ADMIN_NAV: readonly NavGroup[] = [
       { href: '/portal/admin/inventory', label: 'Inventory', icon: Package },
       { href: '/portal/admin/team', label: 'Team', icon: Users },
       { href: '/portal/admin/shop', label: 'Shop settings', icon: Store },
+      { href: '/portal/admin/integrations', label: 'Integrations', icon: Plug },
     ],
   },
 ] as const;
