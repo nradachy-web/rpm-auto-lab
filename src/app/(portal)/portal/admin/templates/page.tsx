@@ -126,20 +126,22 @@ function TemplateRow({ template, packages, onChange }: { template: JobTemplate; 
 
   const save = async () => {
     setBusy(true);
-    await api.patch(`/api/admin/templates/${template.id}`, {
+    const res = await api.patch(`/api/admin/templates/${template.id}`, {
       name,
       totalPrice: parseInt(price) || 0,
       durationMinutes: parseInt(duration) || 60,
       packageSlugs: Array.from(picked),
     });
     setBusy(false);
+    if (!res.ok) { alert(res.error || 'Save failed'); return; }
     setEditing(false);
     onChange();
   };
 
   const remove = async () => {
     if (!window.confirm('Archive this template?')) return;
-    await api.delete(`/api/admin/templates/${template.id}`);
+    const res = await api.delete(`/api/admin/templates/${template.id}`);
+    if (!res.ok) { alert(res.error || 'Delete failed'); return; }
     onChange();
   };
 

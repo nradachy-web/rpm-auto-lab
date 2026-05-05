@@ -52,8 +52,9 @@ function BayList({ bays, onChange }: { bays: Bay[]; onChange: () => void }) {
   const add = async () => {
     if (!name.trim()) return;
     setBusy(true);
-    await api.post('/api/admin/bays', { name: name.trim() });
+    const res = await api.post('/api/admin/bays', { name: name.trim() });
     setBusy(false);
+    if (!res.ok) { alert(res.error || 'Failed to add bay'); return; }
     setName('');
     onChange();
   };
@@ -89,8 +90,9 @@ function BayRow({ bay, onChange }: { bay: Bay; onChange: () => void }) {
 
   const save = async () => {
     setBusy(true);
-    await api.patch(`/api/admin/bays/${bay.id}`, { name, active });
+    const res = await api.patch(`/api/admin/bays/${bay.id}`, { name, active });
     setBusy(false);
+    if (!res.ok) { alert(res.error || 'Save failed'); return; }
     setEditing(false);
     onChange();
   };
@@ -127,8 +129,9 @@ function TechList({ techs, onChange }: { techs: Technician[]; onChange: () => vo
   const add = async () => {
     if (!name.trim()) return;
     setBusy(true);
-    await api.post('/api/admin/technicians', { name: name.trim(), initials: initials.trim() || undefined });
+    const res = await api.post('/api/admin/technicians', { name: name.trim(), initials: initials.trim() || undefined });
     setBusy(false);
+    if (!res.ok) { alert(res.error || 'Failed to add tech'); return; }
     setName('');
     setInitials('');
     onChange();
@@ -173,8 +176,9 @@ function TechRow({ tech, onChange }: { tech: Technician; onChange: () => void })
 
   const save = async () => {
     setBusy(true);
-    await api.patch(`/api/admin/technicians/${tech.id}`, { name, initials: initials || null, active });
+    const res = await api.patch(`/api/admin/technicians/${tech.id}`, { name, initials: initials || null, active });
     setBusy(false);
+    if (!res.ok) { alert(res.error || 'Save failed'); return; }
     setEditing(false);
     onChange();
   };

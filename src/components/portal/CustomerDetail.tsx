@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { X, MessageSquare, Receipt, Wrench, Car, Plus, StickyNote } from 'lucide-react';
+import { X, MessageSquare, Receipt, Wrench, Car, Plus, StickyNote, Trash2, Mail, Phone } from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -49,12 +49,15 @@ const statusPill = (status: string) =>
 const labelStatus = (s: string) =>
   s === 'in_progress' ? 'In Progress' : s === 'picked_up' ? 'Picked Up' : s.charAt(0).toUpperCase() + s.slice(1);
 
-export default function CustomerDetail({ id, onClose }: { id: string; onClose: () => void }) {
+export default function CustomerDetail({ id, onClose, onDeleted }: { id: string; onClose: () => void; onDeleted?: () => void }) {
   const [c, setC] = useState<CustomerFull | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [editingNotes, setEditingNotes] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   const load = useCallback(async () => {
     const res = await api.get<{ customer: CustomerFull }>(`/api/admin/customers/${id}`);
@@ -72,6 +75,20 @@ export default function CustomerDetail({ id, onClose }: { id: string; onClose: (
     await api.patch(`/api/admin/customers/${id}`, { notes: noteDraft || null });
     setEditingNotes(false);
     load();
+  };
+
+  const doDelete = async () => {
+    if (!c) return;
+    setDeleting(true);
+    const res = await api.delete(`/api/admin/customers/${c.id}`);
+    setDeleting(false);
+    if (!res.ok) {
+      alert(res.error || 'Could not delete this customer');
+      return;
+    }
+    setConfirmDelete(false);
+    onDeleted?.();
+    onClose();
   };
 
   const ltv = c ? c.invoices.reduce((s, i) => s + i.paidCents, 0) : 0;
@@ -233,17 +250,61 @@ export default function CustomerDetail({ id, onClose }: { id: string; onClose: (
               )}
             </section>
 
-            <section className="pt-3 border-t border-rpm-gray/30 flex flex-wrap gap-2">
-              <Link href={`/portal/admin/messages?customer=${c.id}`} className="px-3 py-2 rounded-lg border border-rpm-gray text-sm text-rpm-silver hover:text-rpm-white flex items-center gap-1">
-                <MessageSquare className="w-4 h-4" /> Message
-              </Link>
-              <Link href={`/portal/admin/new-quote?customer=${c.id}`} className="px-3 py-2 rounded-lg bg-rpm-red text-white text-sm font-bold hover:bg-rpm-red-dark flex items-center gap-1">
-                <Plus className="w-4 h-4" /> New quote / job
-              </Link>
+            <section className="pt-3 border-t border-rpm-gray/30 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap gap-2">
+                <Link href={`/portal/admin/messages?customer=${c.id}`} className="px-3 py-2 rounded-lg border border-rpm-gray text-sm text-rpm-silver hover:text-rpm-white flex items-center gap-1">
+                  <MessageSquare className="w-4 h-4" /> Message
+                </Link>
+                <a href={`mailto:${c.email}`} className="px-3 py-2 rounded-lg border border-rpm-gray text-sm text-rpm-silver hover:text-rpm-white flex items-center gap-1">
+                  <Mail className="w-4 h-4" /> Email
+                </a>
+                {c.phone && (
+                  <a href={`tel:${c.phone}`} className="px-3 py-2 rounded-lg border border-rpm-gray text-sm text-rpm-silver hover:text-rpm-white flex items-center gap-1">
+                    <Phone className="w-4 h-4" /> Call
+                  </a>
+                )}
+                <Link href={`/portal/admin/new-quote?customer=${c.id}`} className="px-3 py-2 rounded-lg bg-rpm-red text-white text-sm font-bold hover:bg-rpm-red-dark flex items-center gap-1">
+                  <Plus className="w-4 h-4" /> New quote / job
+                </Link>
+              </div>
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="px-3 py-2 rounded-lg border border-rpm-red/40 text-sm text-rpm-red hover:bg-rpm-red/10 flex items-center gap-1"
+              >
+                <Trash2 className="w-4 h-4" /> Delete
+              </button>
             </section>
           </div>
         )}
       </aside>
+
+      {confirmDelete && c && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4" onClick={() => setConfirmDelete(false)}>
+          <div className="bg-rpm-dark border border-rpm-red/50 rounded-xl p-5 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-black text-rpm-white">Delete {c.name}?</h3>
+            <p className="text-sm text-rpm-silver mt-2">
+              This permanently removes the customer plus all their vehicles, quotes, jobs, photos, and unpaid invoices. <span className="text-rpm-red font-semibold">This cannot be undone.</span>
+            </p>
+            <p className="text-xs text-rpm-silver mt-3">Type <span className="font-mono text-rpm-white">DELETE</span> to confirm:</p>
+            <input
+              autoFocus
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              className="mt-1 w-full px-3 py-2 rounded-lg bg-rpm-charcoal border border-rpm-gray text-sm text-rpm-white font-mono"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setConfirmDelete(false)} className="px-3 py-2 text-sm text-rpm-silver hover:text-rpm-white">Cancel</button>
+              <button
+                onClick={doDelete}
+                disabled={deleting || deleteConfirmText !== 'DELETE'}
+                className="px-4 py-2 rounded-lg bg-rpm-red text-white font-bold disabled:opacity-50"
+              >
+                {deleting ? 'Deleting…' : 'Delete permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

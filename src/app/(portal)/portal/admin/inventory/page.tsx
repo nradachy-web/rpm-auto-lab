@@ -33,12 +33,16 @@ export default function InventoryPage() {
 
   const add = async () => {
     if (!name.trim()) return;
-    await api.post('/api/admin/inventory', {
+    const res = await api.post('/api/admin/inventory', {
       name: name.trim(),
       unit: unit.trim() || 'unit',
       quantity: parseFloat(qty) || 0,
       lowStockAt: low ? parseFloat(low) : undefined,
     });
+    if (!res.ok) {
+      alert(res.error || 'Failed to add item');
+      return;
+    }
     setName(''); setQty('0'); setLow('');
     load();
   };
@@ -92,11 +96,15 @@ function ItemRow({ item, onChange }: { item: Item; onChange: () => void }) {
     const v = parseFloat(delta);
     if (!Number.isFinite(v) || v <= 0) return;
     setBusy(true);
-    await api.patch(`/api/admin/inventory/${item.id}`, {
+    const res = await api.patch(`/api/admin/inventory/${item.id}`, {
       delta: sign * v,
       reason,
     });
     setBusy(false);
+    if (!res.ok) {
+      alert(res.error || 'Update failed');
+      return;
+    }
     setDelta('');
     onChange();
   };

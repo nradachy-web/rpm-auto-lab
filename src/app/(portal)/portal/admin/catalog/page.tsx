@@ -74,8 +74,11 @@ export default function CatalogPage() {
       </header>
 
       {isEmpty && (
-        <div className="rounded-xl border border-dashed border-rpm-gray/40 p-6 text-rpm-silver/80">
-          No catalog yet. Click <strong>Seed defaults</strong> to import the standard RPM lineup.
+        <div className="rounded-xl border border-dashed border-rpm-gray/40 p-6 text-rpm-silver/80 flex items-center justify-between gap-3 flex-wrap">
+          <span>No catalog yet. Import the standard RPM lineup to get started.</span>
+          <button onClick={seed} disabled={seeding} className="px-3 py-2 rounded-lg bg-rpm-red text-white text-sm font-bold disabled:opacity-50">
+            {seeding ? 'Seeding…' : 'Seed defaults now'}
+          </button>
         </div>
       )}
 

@@ -52,4 +52,39 @@ export const PATCH = withCors(async (req) => {
   }
 });
 
+export const DELETE = withCors(async (req) => {
+  try {
+    await requireAdmin();
+    const id = new URL(req.url).pathname.split("/").pop();
+    if (!id) return json({ error: "Missing id" }, { status: 400 });
+
+    const customer = await prisma.user.findUnique({
+      where: { id },
+      include: {
+        invoices: { select: { paidCents: true, status: true } },
+        _count: { select: { vehicles: true, quotes: true, jobs: true, invoices: true, payments: true } },
+      },
+    });
+    if (!customer) return json({ error: "Not found" }, { status: 404 });
+    if (customer.role === "admin") return json({ error: "Cannot delete an admin user." }, { status: 400 });
+
+    // Safety: refuse to delete a customer who has any paid revenue on file —
+    // accounting needs to keep that history. Recommend voiding/anonymizing
+    // instead in that case (next pass).
+    const hasPayments = customer.invoices.some((i) => i.paidCents > 0);
+    if (hasPayments) {
+      return json({
+        error: "This customer has paid invoices and can't be deleted (would orphan accounting). Archive instead — coming soon.",
+      }, { status: 409 });
+    }
+
+    // All other relations cascade via Prisma onDelete: Cascade.
+    await prisma.user.delete({ where: { id } });
+    return json({ ok: true });
+  } catch (e) {
+    if (e instanceof AuthError) return json({ error: e.code }, { status: e.code === "UNAUTHENTICATED" ? 401 : 403 });
+    throw e;
+  }
+});
+
 export const OPTIONS = withCors(async () => new Response(null, { status: 204 }));

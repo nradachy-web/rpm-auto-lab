@@ -81,8 +81,12 @@ export default function BayPage() {
       </div>
 
       {todayJobs.length === 0 && (
-        <div className="rounded-xl border border-dashed border-rpm-gray/40 p-8 text-rpm-silver/70 text-sm text-center">
-          No jobs on the schedule today.
+        <div className="rounded-xl border border-dashed border-rpm-gray/40 p-8 text-rpm-silver/70 text-sm text-center space-y-3">
+          <div>No jobs on the schedule today.</div>
+          <div className="flex items-center justify-center gap-2 text-xs">
+            <a href="/rpm-auto-lab/portal/admin/new-quote" className="px-3 py-1.5 rounded-lg bg-rpm-red text-white font-bold">+ New job</a>
+            <a href="/rpm-auto-lab/portal/admin/schedule" className="px-3 py-1.5 rounded-lg border border-rpm-gray text-rpm-silver">Open schedule</a>
+          </div>
         </div>
       )}
 
@@ -101,15 +105,17 @@ function BayCard({ job, onChange }: { job: Job; onChange: () => void }) {
 
   const advance = async (next: 'in_progress' | 'completed') => {
     setBusy(true);
-    await api.patch(`/api/admin/jobs/${job.id}/status`, { status: next });
+    const res = await api.patch(`/api/admin/jobs/${job.id}/status`, { status: next });
     setBusy(false);
+    if (!res.ok) { alert(res.error || 'Update failed'); return; }
     onChange();
   };
 
   const pause = async () => {
     setBusy(true);
-    await api.patch(`/api/admin/jobs/${job.id}/status`, { status: 'scheduled' });
+    const res = await api.patch(`/api/admin/jobs/${job.id}/status`, { status: 'scheduled' });
     setBusy(false);
+    if (!res.ok) { alert(res.error || 'Update failed'); return; }
     onChange();
   };
 
