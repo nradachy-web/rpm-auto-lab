@@ -55,6 +55,9 @@ enum VehicleSizeTier {
   suv
   truck
   oversize
+  motorcycle
+  boat
+  rv
 }
 
 enum InvoiceStatus {

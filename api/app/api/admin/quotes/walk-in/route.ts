@@ -22,13 +22,13 @@ const schema = z.object({
     color: z.string().max(80).optional(),
     licensePlate: z.string().max(20).optional(),
     vin: z.string().max(20).optional(),
-    sizeTier: z.enum(["compact", "sedan", "suv", "truck", "oversize"]).optional(),
+    sizeTier: z.enum(["compact", "sedan", "suv", "truck", "oversize", "motorcycle", "boat", "rv"]).optional(),
   }),
   // Quote
   services: z.array(z.string().min(1).max(80)).min(1),
   quotedAmount: z.number().int().nonnegative(),
   notes: z.string().max(2000).optional(),
-  source: z.enum(["phone", "walkin", "referral", "in_person", "other"]).default("phone"),
+  source: z.enum(["google", "facebook", "instagram", "referral", "website", "phone", "walkin", "in_person", "other"]).default("phone"),
   // Optional: schedule the job in the same step.
   schedule: z.object({
     startAt: z.string().datetime(),

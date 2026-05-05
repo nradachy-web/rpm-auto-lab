@@ -1,20 +1,51 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Phone, Send } from 'lucide-react';
 import { api } from '@/lib/api';
 import { sendWelcomeQuote, sendAdminQuoteAlert, CUSTOMER_PORTAL_URL, SHOP_INBOX } from '@/lib/email-client';
 
-type SizeTier = 'compact' | 'sedan' | 'suv' | 'truck' | 'oversize';
+type SizeTier = 'compact' | 'sedan' | 'suv' | 'truck' | 'oversize' | 'motorcycle' | 'boat' | 'rv';
 
 interface CatalogPackage { slug: string; name: string; basePrice: number }
 interface CatalogCategory { id: string; name: string; packages: CatalogPackage[] }
 
-const SIZE_TIERS: SizeTier[] = ['compact', 'sedan', 'suv', 'truck', 'oversize'];
+const SIZE_TIERS: { value: SizeTier; label: string }[] = [
+  { value: 'compact', label: 'Compact car' },
+  { value: 'sedan', label: 'Sedan / Coupe' },
+  { value: 'suv', label: 'SUV / Crossover' },
+  { value: 'truck', label: 'Truck' },
+  { value: 'oversize', label: 'Oversize / Van' },
+  { value: 'motorcycle', label: 'Motorcycle' },
+  { value: 'boat', label: 'Boat' },
+  { value: 'rv', label: 'RV' },
+];
+
+type Source = 'google' | 'facebook' | 'instagram' | 'referral' | 'website' | 'phone' | 'walkin' | 'in_person' | 'other';
+const SOURCES: { value: Source; label: string }[] = [
+  { value: 'google', label: 'Google' },
+  { value: 'facebook', label: 'Facebook' },
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'referral', label: 'Referral' },
+  { value: 'website', label: 'Website' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'walkin', label: 'Walk-in' },
+  { value: 'in_person', label: 'In Person' },
+  { value: 'other', label: 'Other' },
+];
 
 export default function NewQuotePage() {
+  return (
+    <Suspense fallback={<div className="text-rpm-silver text-sm">Loading…</div>}>
+      <NewQuoteInner />
+    </Suspense>
+  );
+}
+
+function NewQuoteInner() {
   const router = useRouter();
+  const params = useSearchParams();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -29,7 +60,7 @@ export default function NewQuotePage() {
   const [services, setServices] = useState<Set<string>>(new Set());
   const [quotedAmount, setQuotedAmount] = useState('');
   const [notes, setNotes] = useState('');
-  const [source, setSource] = useState<'phone' | 'walkin' | 'referral' | 'in_person'>('phone');
+  const [source, setSource] = useState<Source>('phone');
   const [packages, setPackages] = useState<CatalogPackage[]>([]);
   const [busy, setBusy] = useState(false);
   const [vinDecoding, setVinDecoding] = useState(false);
@@ -45,6 +76,31 @@ export default function NewQuotePage() {
       if (res.ok) setPackages((res.data?.categories ?? []).flatMap((c) => c.packages));
     })();
   }, []);
+
+  // If linked from the schedule with a date+time, prefill the schedule fields.
+  useEffect(() => {
+    const date = params?.get('date');
+    const time = params?.get('time');
+    if (date) {
+      setScheduleNow(true);
+      setScheduleDate(date);
+      if (time) setScheduleTime(time);
+    }
+  }, [params]);
+
+  // If linked from a customer detail slide-over, prefill customer fields.
+  useEffect(() => {
+    const customerId = params?.get('customer');
+    if (!customerId) return;
+    (async () => {
+      const res = await api.get<{ customer: { name: string; email: string; phone?: string | null } }>(`/api/admin/customers/${customerId}`);
+      if (res.ok && res.data?.customer) {
+        setName(res.data.customer.name);
+        setEmail(res.data.customer.email);
+        if (res.data.customer.phone) setPhone(res.data.customer.phone);
+      }
+    })();
+  }, [params]);
 
   const decodeVin = async () => {
     if (vin.trim().length < 11) return;
@@ -145,19 +201,19 @@ export default function NewQuotePage() {
           <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" type="email" className="px-3 py-2 rounded-lg bg-rpm-charcoal border border-rpm-gray text-sm text-rpm-white" />
           <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone" type="tel" className="px-3 py-2 rounded-lg bg-rpm-charcoal border border-rpm-gray text-sm text-rpm-white" />
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-rpm-silver">Source:</span>
-          {(['phone', 'walkin', 'referral', 'in_person'] as const).map((s) => (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-rpm-silver">How did they find us?</span>
+          {SOURCES.map((s) => (
             <button
-              key={s}
+              key={s.value}
               type="button"
-              onClick={() => setSource(s)}
+              onClick={() => setSource(s.value)}
               className={
-                'px-2.5 py-1 rounded-full text-[11px] font-bold capitalize border ' +
-                (source === s ? 'bg-rpm-red/15 border-rpm-red text-rpm-red' : 'border-rpm-gray text-rpm-silver hover:text-rpm-white')
+                'px-2.5 py-1 rounded-full text-[11px] font-bold border ' +
+                (source === s.value ? 'bg-rpm-red/15 border-rpm-red text-rpm-red' : 'border-rpm-gray text-rpm-silver hover:text-rpm-white')
               }
             >
-              {s.replace('_', ' ')}
+              {s.label}
             </button>
           ))}
         </div>
@@ -181,7 +237,7 @@ export default function NewQuotePage() {
           <input value={color} onChange={(e) => setColor(e.target.value)} placeholder="Color" className="px-3 py-2 rounded-lg bg-rpm-charcoal border border-rpm-gray text-sm text-rpm-white" />
           <input value={licensePlate} onChange={(e) => setLicensePlate(e.target.value.toUpperCase())} placeholder="Plate" className="px-3 py-2 rounded-lg bg-rpm-charcoal border border-rpm-gray text-sm text-rpm-white" />
           <select value={sizeTier} onChange={(e) => setSizeTier(e.target.value as SizeTier)} className="px-3 py-2 rounded-lg bg-rpm-charcoal border border-rpm-gray text-sm text-rpm-white">
-            {SIZE_TIERS.map((t) => <option key={t} value={t}>{t}</option>)}
+            {SIZE_TIERS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
         </div>
       </section>
