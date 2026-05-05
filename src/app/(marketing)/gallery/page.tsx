@@ -50,12 +50,12 @@ const FEATURED_REEL = {
 };
 
 const VERTICAL_CLIPS = [
-  { id: "v1", video: "m850-studio.mp4", poster: "m850-studio.jpg", tag: "Studio", caption: "BMW M850i — Hex bay" },
-  { id: "v2", video: "ct5v-studio.mp4", poster: "ct5v-studio.jpg", tag: "Studio", caption: "CT5-V Blackwing — Final inspection" },
-  { id: "v3", video: "beading-macro.mp4", poster: "beading-macro.jpg", tag: "Ceramic Coating", caption: "Hydrophobic beading after coating cure" },
-  { id: "v4", video: "rs3-foam.mp4", poster: "rs3-foam.jpg", tag: "Detailing", caption: "Audi RS3 — Foam decontamination" },
-  { id: "v5", video: "g80-foam.mp4", poster: "g80-foam.jpg", tag: "Detailing", caption: "BMW M3 G80 — Pre-coat wash" },
-  { id: "v6", video: "ppf-bts.mp4", poster: "ppf-bts.jpg", tag: "PPF", caption: "Behind the scenes — film prep" },
+  { id: "v1", video: "m850-studio.mp4", poster: "m850-studio.jpg", tag: "Ceramic Coating", caption: "BMW M850i - Full Ceramic Coating" },
+  { id: "v2", video: "ct5v-studio.mp4", poster: "ct5v-studio.jpg", tag: "Ceramic Coating", caption: "Cadillac CT5-V Blackwing - Full Ceramic Coating" },
+  { id: "v3", video: "beading-macro.mp4", poster: "beading-macro.jpg", tag: "Ceramic Coating", caption: "Audi RS3 - Ceramic Coating" },
+  { id: "v4", video: "rs3-foam.mp4", poster: "rs3-foam.jpg", tag: "Detailing", caption: "Audi RS3 - Full Detail" },
+  { id: "v5", video: "g80-foam.mp4", poster: "g80-foam.jpg", tag: "Detailing", caption: "BMW M3 G80 - Full Detail" },
+  { id: "v6", video: "ppf-bts.mp4", poster: "ppf-bts.jpg", tag: "PPF", caption: "Cadillac CT5-V Blackwing - Full PPF" },
 ];
 
 export default function GalleryPage() {
