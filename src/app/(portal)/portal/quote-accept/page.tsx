@@ -53,6 +53,7 @@ function QuoteAcceptInner() {
   const [chosen, setChosen] = useState<string | null>(null);
   const [accepting, setAccepting] = useState(false);
   const [done, setDone] = useState(false);
+  const [promotions, setPromotions] = useState<Array<{ id: string; headline: string; description?: string | null; discountKind: 'percent_bps' | 'flat_cents'; discountValue: number; endsAt?: string | null }>>([]);
 
   useEffect(() => {
     if (!token) return;
@@ -65,6 +66,8 @@ function QuoteAcceptInner() {
         if (recommended) setChosen(recommended.id);
         else if (res.data?.options[0]) setChosen(res.data.options[0].id);
       }
+      const promoRes = await api.get<{ promotions: typeof promotions }>('/api/promotions/active?surface=accept');
+      if (promoRes.ok) setPromotions(promoRes.data?.promotions ?? []);
     })();
   }, [token]);
 
@@ -165,6 +168,25 @@ function QuoteAcceptInner() {
               {data.quote.services.join(' + ')}
             </div>
           </div>
+        </section>
+      )}
+
+      {promotions.length > 0 && (
+        <section className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 space-y-2">
+          <div className="text-[11px] uppercase tracking-wider font-bold text-amber-400">Limited-time</div>
+          {promotions.map((p) => {
+            const fmt = p.discountKind === 'percent_bps'
+              ? `${(p.discountValue / 100).toFixed(p.discountValue % 100 === 0 ? 0 : 1)}% off`
+              : `$${(p.discountValue / 100).toFixed(2)} off`;
+            return (
+              <div key={p.id} className="text-sm">
+                <span className="text-rpm-white font-bold">{p.headline}</span>
+                <span className="text-amber-300 font-bold ml-2">{fmt}</span>
+                {p.description && <div className="text-xs text-rpm-silver mt-0.5">{p.description}</div>}
+                {p.endsAt && <div className="text-[10px] text-rpm-silver/70 mt-0.5">Ends {new Date(p.endsAt).toLocaleDateString()}</div>}
+              </div>
+            );
+          })}
         </section>
       )}
 

@@ -850,3 +850,30 @@ model Subscription {
   @@index([status, nextChargeAt])
 }
 
+// ───────────── Promotions ─────────────
+// Limited-time offers shown on the marketing site and the public quote-
+// accept page. Acts as a soft incentive for customers to schedule.
+
+enum PromotionDiscountKind {
+  flat_cents
+  percent_bps
+}
+
+model Promotion {
+  id              String   @id @default(cuid())
+  code            String?  @unique  // optional self-serve code
+  headline        String   // "May PPF Special"
+  description     String?  // "10% off any front-end PPF package"
+  discountKind    PromotionDiscountKind @default(percent_bps)
+  discountValue   Int      // bps if percent_bps (e.g. 1000 = 10%); cents if flat
+  startsAt        DateTime @default(now())
+  endsAt          DateTime?
+  active          Boolean  @default(true)
+  showOnAccept    Boolean  @default(true)   // surface on /portal/quote-accept
+  showOnSite      Boolean  @default(false)  // surface on marketing home
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([active, endsAt])
+}
+

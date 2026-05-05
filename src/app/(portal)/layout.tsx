@@ -26,6 +26,10 @@ import {
   Megaphone,
   HardHat,
   Gift,
+  Kanban,
+  Star,
+  Store,
+  Percent,
 } from 'lucide-react';
 import { api, setAuthToken } from '@/lib/api';
 import GlobalSearch from '@/components/portal/GlobalSearch';
@@ -50,27 +54,62 @@ const customerNav = [
   { href: '/portal/settings', label: 'Settings', icon: Settings },
 ] as const;
 
-// ADMIN daily nav: 5 things Alex touches every day. Everything else (catalog,
-// inventory, campaigns, templates, reports, team, bay, reviews) lives behind
-// the "More" drawer to keep the chrome out of his way.
-const adminNav = [
-  { href: '/portal/admin', label: 'Today', icon: Shield },
-  { href: '/portal/admin/schedule', label: 'Schedule', icon: Calendar },
-  { href: '/portal/admin/messages', label: 'Inbox', icon: MessageSquare },
-  { href: '/portal/admin/invoices', label: 'Money', icon: Receipt },
-  { href: '/portal/admin/customers', label: 'Customers', icon: Users },
+// Admin nav reorganized around the verbs of running a detail/PPF shop:
+// (1) the daily spine, (2) people + money, (3) growth tools, (4) setup.
+// Each section is collapsible; the spine stays open by default.
+type NavItem = { href: string; label: string; icon: typeof LayoutDashboard };
+type NavGroup = { id: string; label: string; defaultOpen: boolean; items: readonly NavItem[] };
+
+const ADMIN_NAV: readonly NavGroup[] = [
+  {
+    id: 'daily',
+    label: 'Daily work',
+    defaultOpen: true,
+    items: [
+      { href: '/portal/admin', label: 'Today', icon: Shield },
+      { href: '/portal/admin/schedule', label: 'Schedule', icon: Calendar },
+      { href: '/portal/admin/bay', label: 'Bay (Tech)', icon: HardHat },
+      { href: '/portal/admin/pipeline', label: 'Pipeline', icon: Kanban },
+    ],
+  },
+  {
+    id: 'people-money',
+    label: 'People & money',
+    defaultOpen: true,
+    items: [
+      { href: '/portal/admin/customers', label: 'Customers', icon: Users },
+      { href: '/portal/admin/messages', label: 'Messages', icon: MessageSquare },
+      { href: '/portal/admin/invoices', label: 'Money', icon: Receipt },
+    ],
+  },
+  {
+    id: 'growth',
+    label: 'Growth',
+    defaultOpen: false,
+    items: [
+      { href: '/portal/admin/reports', label: 'Reports', icon: BarChart3 },
+      { href: '/portal/admin/reviews', label: 'Reviews', icon: Star },
+      { href: '/portal/admin/campaigns', label: 'Campaigns', icon: Megaphone },
+      { href: '/portal/admin/promotions', label: 'Promotions', icon: Percent },
+    ],
+  },
+  {
+    id: 'setup',
+    label: 'Setup',
+    defaultOpen: false,
+    items: [
+      { href: '/portal/admin/catalog', label: 'Catalog', icon: Tag },
+      { href: '/portal/admin/templates', label: 'Templates', icon: FileText },
+      { href: '/portal/admin/inventory', label: 'Inventory', icon: Package },
+      { href: '/portal/admin/team', label: 'Team', icon: Users },
+      { href: '/portal/admin/shop', label: 'Shop settings', icon: Store },
+    ],
+  },
 ] as const;
 
-const adminMoreNav = [
-  { href: '/portal/admin/bay', label: 'Bay (Tech)', icon: HardHat },
-  { href: '/portal/admin/reports', label: 'Reports', icon: BarChart3 },
-  { href: '/portal/admin/catalog', label: 'Catalog', icon: Tag },
-  { href: '/portal/admin/inventory', label: 'Inventory', icon: Package },
-  { href: '/portal/admin/templates', label: 'Templates', icon: FileText },
-  { href: '/portal/admin/campaigns', label: 'Campaigns', icon: Megaphone },
-  { href: '/portal/admin/reviews', label: 'Reviews', icon: Gift },
-  { href: '/portal/admin/team', label: 'Team', icon: Users },
-] as const;
+// Flat list for mobile bottom-tab + back-compat with anything that imports it.
+const adminNav: readonly NavItem[] = ADMIN_NAV[0].items;
+const adminMoreNav: readonly NavItem[] = ADMIN_NAV.slice(1).flatMap((g) => g.items);
 
 
 // Path prefixes that don't require a session (set-password lives under /portal
@@ -113,7 +152,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     router.replace('/login');
   };
 
+  // Mobile bottom-tab uses the daily-spine items (admin) or the full
+  // customer nav. Capped at 4 + a More overflow.
   const nav = user?.role === 'admin' ? adminNav : customerNav;
+  void adminMoreNav; // referenced only by ADMIN_NAV; kept for back-compat
 
   // Gate admin pages — redirect a customer who guesses /portal/admin
   useEffect(() => {
@@ -145,27 +187,30 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           <span className="text-rpm-white font-bold text-lg tracking-wide">RPM Auto Lab</span>
         </Link>
 
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {nav.map((item) => {
-            const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200',
-                  isActive
-                    ? 'bg-rpm-red/10 text-rpm-red border border-rpm-red/20'
-                    : 'text-rpm-silver hover:text-rpm-white hover:bg-rpm-gray/50'
-                )}
-              >
-                <item.icon className="w-5 h-5" />
-                {item.label}
-                {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
-              </Link>
-            );
-          })}
-          {user?.role === 'admin' && <AdminMoreSection pathname={pathname} />}
+        <nav className="flex-1 px-3 py-4 space-y-2 overflow-y-auto">
+          {user?.role === 'admin'
+            ? ADMIN_NAV.map((group) => (
+                <NavGroupBlock key={group.id} group={group} pathname={pathname} />
+              ))
+            : customerNav.map((item) => {
+                const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200',
+                      isActive
+                        ? 'bg-rpm-red/10 text-rpm-red border border-rpm-red/20'
+                        : 'text-rpm-silver hover:text-rpm-white hover:bg-rpm-gray/50'
+                    )}
+                  >
+                    <item.icon className="w-5 h-5" />
+                    {item.label}
+                    {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
+                  </Link>
+                );
+              })}
         </nav>
 
         <div className="px-4 py-4 border-t border-rpm-gray/50">
@@ -235,30 +280,17 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   </svg>
                 </button>
               </div>
-              <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-                {nav.map((item) => {
-                  const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setMobileOpen(false)}
-                      className={cn(
-                        'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200',
-                        isActive
-                          ? 'bg-rpm-red/10 text-rpm-red border border-rpm-red/20'
-                          : 'text-rpm-silver hover:text-rpm-white hover:bg-rpm-gray/50'
-                      )}
-                    >
-                      <item.icon className="w-5 h-5" />
-                      {item.label}
-                    </Link>
-                  );
-                })}
-                {user?.role === 'admin' && (
-                  <div className="pt-3 mt-3 border-t border-rpm-gray/40">
-                    <div className="px-4 mb-2 text-[10px] uppercase tracking-wider text-rpm-silver/60 font-bold">More</div>
-                    {adminMoreNav.map((item) => {
+              <nav className="flex-1 px-3 py-4 space-y-2 overflow-y-auto">
+                {user?.role === 'admin'
+                  ? ADMIN_NAV.map((group) => (
+                      <NavGroupBlock
+                        key={group.id}
+                        group={group}
+                        pathname={pathname}
+                        onPick={() => setMobileOpen(false)}
+                      />
+                    ))
+                  : customerNav.map((item) => {
                       const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
                       return (
                         <Link
@@ -266,17 +298,17 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                           href={item.href}
                           onClick={() => setMobileOpen(false)}
                           className={cn(
-                            'flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-all duration-200',
-                            isActive ? 'bg-rpm-red/10 text-rpm-red' : 'text-rpm-silver hover:text-rpm-white hover:bg-rpm-gray/50'
+                            'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200',
+                            isActive
+                              ? 'bg-rpm-red/10 text-rpm-red border border-rpm-red/20'
+                              : 'text-rpm-silver hover:text-rpm-white hover:bg-rpm-gray/50'
                           )}
                         >
-                          <item.icon className="w-4 h-4" />
+                          <item.icon className="w-5 h-5" />
                           {item.label}
                         </Link>
                       );
                     })}
-                  </div>
-                )}
               </nav>
               <div className="px-4 py-4 border-t border-rpm-gray/50">
                 <div className="flex items-center gap-3 mb-3">
@@ -348,32 +380,41 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   );
 }
 
-function AdminMoreSection({ pathname }: { pathname: string | null }) {
-  // Default-collapsed sub-nav for admin tools that aren't part of the daily
-  // workflow. Auto-expands if the user is currently inside one of them so
-  // they can see where they are.
-  const containsActive = adminMoreNav.some((i) => pathname === i.href || pathname?.startsWith(i.href + '/'));
-  const [open, setOpen] = useState(containsActive);
+function NavGroupBlock({
+  group, pathname, onPick,
+}: {
+  group: NavGroup;
+  pathname: string | null;
+  onPick?: () => void;
+}) {
+  const containsActive = group.items.some((i) => pathname === i.href || pathname?.startsWith(i.href + '/'));
+  const [open, setOpen] = useState(group.defaultOpen || containsActive);
+  // Auto-open if user navigates into a child after initial mount.
+  useEffect(() => { if (containsActive) setOpen(true); }, [containsActive]);
   return (
-    <div className="pt-3 mt-3 border-t border-rpm-gray/40">
+    <div>
       <button
+        type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-2 text-[10px] uppercase tracking-wider text-rpm-silver/70 font-bold hover:text-rpm-white"
+        className="w-full flex items-center justify-between px-4 py-1.5 text-[10px] uppercase tracking-wider text-rpm-silver/70 font-bold hover:text-rpm-white"
       >
-        <span>More tools</span>
+        <span>{group.label}</span>
         <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', open && 'rotate-180')} />
       </button>
       {open && (
-        <div className="mt-1 space-y-1">
-          {adminMoreNav.map((item) => {
+        <div className="mt-0.5 space-y-1">
+          {group.items.map((item) => {
             const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={onPick}
                 className={cn(
-                  'flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all duration-200',
-                  isActive ? 'bg-rpm-red/10 text-rpm-red' : 'text-rpm-silver hover:text-rpm-white hover:bg-rpm-gray/50'
+                  'flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200',
+                  isActive
+                    ? 'bg-rpm-red/10 text-rpm-red border border-rpm-red/20'
+                    : 'text-rpm-silver hover:text-rpm-white hover:bg-rpm-gray/50'
                 )}
               >
                 <item.icon className="w-4 h-4" />
