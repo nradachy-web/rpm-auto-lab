@@ -10,25 +10,25 @@ import Button from "@/components/ui/Button";
 import { ArrowRight, Eye, Volume2, VolumeX } from "lucide-react";
 
 const GALLERY_ITEMS = [
-  { id: 1, serviceId: "ceramic-coating", service: "Ceramic Coating", vehicle: "Chevrolet Corvette C8 — Black", image: "corvette-c8-black.jpg" },
-  { id: 2, serviceId: "ceramic-coating", service: "Ceramic Coating", vehicle: "Cadillac CT5-V Blackwing — Deep Space Metallic", image: "ct5v-front.jpg" },
-  { id: 3, serviceId: "ceramic-coating", service: "Ceramic Coating", vehicle: "Cadillac CT5-V Blackwing — Wheel & Stance", image: "ct5v-shop-sign.jpg" },
-  { id: 4, serviceId: "paint-correction", service: "Paint Correction", vehicle: "CT5-V Blackwing — Reflection Clarity", image: "ct5v-reflection.jpg" },
-  { id: 5, serviceId: "paint-correction", service: "Paint Correction", vehicle: "Multi-Stage Polish — Edge Detail", image: "ct5v-edge-correction.jpg" },
-  { id: 6, serviceId: "ceramic-coating", service: "Ceramic Coating", vehicle: "Cadillac CT5-V Blackwing — Rear Wing", image: "ct5v-spoiler.jpg" },
-  { id: 7, serviceId: "ceramic-coating", service: "Ceramic Coating", vehicle: "BMW M4 Competition — Brooklyn Gray", image: "m4-shop-front.jpg" },
-  { id: 8, serviceId: "window-tint", service: "Window Tint", vehicle: "BMW M4 Competition — Limo Tint", image: "m4-rear.jpg" },
-  { id: 9, serviceId: "ceramic-coating", service: "Ceramic Coating", vehicle: "Ford Bronco Wildtrak — Eruption Green", image: "bronco-green.jpg" },
-  { id: 10, serviceId: "ceramic-coating", service: "Ceramic Coating", vehicle: "Chevrolet Corvette C8 — Rapid Blue", image: "corvette-c8-blue.jpg" },
-  { id: 11, serviceId: "ceramic-coating", service: "Ceramic Coating", vehicle: "Chevrolet Corvette C6 Z06 — Jetstream Blue", image: "corvette-c6-z06.jpg" },
-  { id: 12, serviceId: "paint-correction", service: "Paint Correction", vehicle: "Camaro SS — Hood Matte Refinish", image: "camaro-ss.jpg" },
-  { id: 13, serviceId: "detailing", service: "Detailing", vehicle: "Lamborghini Aventador — Foam Bath", image: "aventador-foam.jpg" },
-  { id: 14, serviceId: "detailing", service: "Detailing", vehicle: "McLaren 720S Spider — Studio Wash", image: "mclaren-720s-bath.jpg" },
-  { id: 15, serviceId: "paint-correction", service: "Paint Correction", vehicle: "Hex-Lit Reflection — Correction Pass", image: "paint-correction-hex.jpg" },
-  { id: 16, serviceId: "paint-correction", service: "Paint Correction", vehicle: "Porsche 911 — Headlight Macro", image: "porsche-911-headlight.jpg" },
-  { id: 17, serviceId: "detailing", service: "Detailing", vehicle: "Porsche 911 Cabriolet — Curbside", image: "porsche-911-cabriolet.jpg" },
-  { id: 18, serviceId: "vehicle-wraps", service: "Vehicle Wraps", vehicle: "BMW M235i — Carbon Hood Build", image: "m235i-front.jpg" },
-  { id: 19, serviceId: "vehicle-wraps", service: "Vehicle Wraps", vehicle: "BMW M235i — Rear Three-Quarter", image: "m235i-rear.jpg" },
+  { id: 1, serviceId: "ceramic-coating", service: "Ceramic Coating", vehicle: "Chevrolet Corvette C8 - Full Ceramic Coating", image: "corvette-c8-black.jpg" },
+  { id: 2, serviceId: "ceramic-coating", service: "Ceramic Coating", vehicle: "Cadillac CT5-V Blackwing - Full Ceramic Coating", image: "ct5v-front.jpg" },
+  { id: 3, serviceId: "ceramic-coating", service: "Ceramic Coating", vehicle: "Cadillac CT5-V Blackwing - Full Ceramic Coating", image: "ct5v-shop-sign.jpg" },
+  { id: 4, serviceId: "paint-correction", service: "Paint Correction", vehicle: "Cadillac CT5-V Blackwing - Paint Correction", image: "ct5v-reflection.jpg" },
+  { id: 5, serviceId: "paint-correction", service: "Paint Correction", vehicle: "Cadillac CT5-V Blackwing - Paint Correction", image: "ct5v-edge-correction.jpg" },
+  { id: 6, serviceId: "ceramic-coating", service: "Ceramic Coating", vehicle: "Cadillac CT5-V Blackwing - Full Ceramic Coating", image: "ct5v-spoiler.jpg" },
+  { id: 7, serviceId: "ceramic-coating", service: "Ceramic Coating", vehicle: "BMW M4 Competition - Full Ceramic Coating", image: "m4-shop-front.jpg" },
+  { id: 8, serviceId: "window-tint", service: "Window Tint", vehicle: "BMW M4 Competition - Limo Tint", image: "m4-rear.jpg" },
+  { id: 9, serviceId: "ceramic-coating", service: "Ceramic Coating", vehicle: "Ford Bronco Wildtrak - Full Ceramic Coating", image: "bronco-green.jpg" },
+  { id: 10, serviceId: "ceramic-coating", service: "Ceramic Coating", vehicle: "Chevrolet Corvette C8 - Full Ceramic Coating", image: "corvette-c8-blue.jpg" },
+  { id: 11, serviceId: "ceramic-coating", service: "Ceramic Coating", vehicle: "Chevrolet Corvette C6 Z06 - Full Ceramic Coating", image: "corvette-c6-z06.jpg" },
+  { id: 12, serviceId: "paint-correction", service: "Paint Correction", vehicle: "Chevrolet Camaro SS - Paint Correction", image: "camaro-ss.jpg" },
+  { id: 13, serviceId: "detailing", service: "Detailing", vehicle: "Lamborghini Aventador - Full Detail", image: "aventador-foam.jpg" },
+  { id: 14, serviceId: "detailing", service: "Detailing", vehicle: "McLaren 720S Spider - Full Detail", image: "mclaren-720s-bath.jpg" },
+  { id: 15, serviceId: "paint-correction", service: "Paint Correction", vehicle: "Cadillac CT5-V Blackwing - Paint Correction", image: "paint-correction-hex.jpg" },
+  { id: 16, serviceId: "paint-correction", service: "Paint Correction", vehicle: "Porsche 911 - Paint Correction", image: "porsche-911-headlight.jpg" },
+  { id: 17, serviceId: "detailing", service: "Detailing", vehicle: "Porsche 911 Cabriolet - Full Detail", image: "porsche-911-cabriolet.jpg" },
+  { id: 18, serviceId: "vehicle-wraps", service: "Vehicle Wraps", vehicle: "BMW M235i - Custom Wrap", image: "m235i-front.jpg" },
+  { id: 19, serviceId: "vehicle-wraps", service: "Vehicle Wraps", vehicle: "BMW M235i - Custom Wrap", image: "m235i-rear.jpg" },
 ];
 
 const FILTER_TABS = [
@@ -89,7 +89,7 @@ export default function GalleryPage() {
           <AnimatedSection delay={0.2}>
             <p className="mt-6 text-lg md:text-xl text-rpm-silver max-w-2xl mx-auto leading-relaxed">
               Every vehicle tells a story. Foam baths, mirror finishes, invisible
-              armor — pulled straight from the bay.
+              armor, pulled straight from the bay.
             </p>
           </AnimatedSection>
         </div>
@@ -137,7 +137,7 @@ export default function GalleryPage() {
           badge="From the Lab"
           title="In"
           highlight="Motion"
-          description="Short clips from the bay — coatings curing, foam baths, and the kind of finishes you can't capture in a still."
+          description="Short clips from the bay. Coatings curing, foam baths, and the kind of finishes you can't capture in a still."
         />
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mt-12">
