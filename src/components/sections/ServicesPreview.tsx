@@ -11,7 +11,7 @@ import {
   Droplets,
   Eye,
 } from "lucide-react";
-import { SERVICES } from "@/lib/constants";
+import { SERVICES, HIDE_PRICE_SERVICES } from "@/lib/constants";
 import AnimatedSection from "@/components/ui/AnimatedSection";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -126,16 +126,24 @@ function ServiceCard({
             </p>
 
             <div className="flex items-center justify-between">
-              <span className="text-rpm-silver text-sm">
-                From{" "}
-                <span
-                  className={`text-rpm-white font-bold ${
-                    featured ? "text-2xl" : "text-lg"
-                  }`}
-                >
-                  ${service.startingPrice}
+              {HIDE_PRICE_SERVICES.has(service.id) ? (
+                <span className="text-rpm-silver text-sm">
+                  <span className={`text-rpm-white font-bold ${featured ? "text-xl" : "text-base"}`}>
+                    Custom Quote
+                  </span>
                 </span>
-              </span>
+              ) : (
+                <span className="text-rpm-silver text-sm">
+                  From{" "}
+                  <span
+                    className={`text-rpm-white font-bold ${
+                      featured ? "text-2xl" : "text-lg"
+                    }`}
+                  >
+                    ${service.startingPrice}
+                  </span>
+                </span>
+              )}
               <span className="text-rpm-red text-sm font-semibold group-hover:translate-x-1 transition-transform duration-300 inline-flex items-center gap-1">
                 Learn More
                 <span aria-hidden="true">&rarr;</span>

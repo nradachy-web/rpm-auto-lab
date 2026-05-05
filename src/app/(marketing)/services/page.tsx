@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import { SERVICES, BRAND } from "@/lib/constants";
+import { SERVICES, BRAND, HIDE_PRICE_SERVICES } from "@/lib/constants";
 import AnimatedSection from "@/components/ui/AnimatedSection";
 import Button from "@/components/ui/Button";
 import {
@@ -206,10 +206,12 @@ export default function ServicesPage() {
                       <div className={`flex flex-col sm:flex-row items-start sm:items-center gap-6 ${isEven ? "sm:flex-row-reverse" : ""}`}>
                         <div className={isEven ? "text-right" : ""}>
                           <span className="text-[10px] uppercase tracking-[0.25em] text-rpm-silver font-bold block mb-1">
-                            Starting At
+                            {HIDE_PRICE_SERVICES.has(service.id) ? "Pricing" : "Starting At"}
                           </span>
                           <p className="text-4xl font-black text-rpm-white">
-                            ${service.startingPrice.toLocaleString()}
+                            {HIDE_PRICE_SERVICES.has(service.id)
+                              ? "Custom"
+                              : `$${service.startingPrice.toLocaleString()}`}
                           </p>
                         </div>
                         <div className={`flex flex-col sm:flex-row gap-3 ${isEven ? "sm:flex-row-reverse" : ""}`}>

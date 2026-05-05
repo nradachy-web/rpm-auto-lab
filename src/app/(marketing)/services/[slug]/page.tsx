@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { SERVICES, SERVICE_DETAILS, BRAND, BASE_PATH } from "@/lib/constants";
+import { SERVICES, SERVICE_DETAILS, BRAND, BASE_PATH, HIDE_PRICE_SERVICES } from "@/lib/constants";
 import AnimatedSection from "@/components/ui/AnimatedSection";
 import Button from "@/components/ui/Button";
 import {
@@ -28,9 +28,12 @@ export async function generateMetadata({
   const service = SERVICES.find((s) => s.id === slug);
   if (!service) return {};
 
+  const priceLine = HIDE_PRICE_SERVICES.has(service.id)
+    ? "Custom quote based on coverage and vehicle."
+    : `Starting at $${service.startingPrice}.`;
   return {
     title: `${service.name} | RPM Auto Lab`,
-    description: `Professional ${service.name.toLowerCase()} services in Orion Township, MI. ${service.shortDesc}. Starting at $${service.startingPrice}.`,
+    description: `Professional ${service.name.toLowerCase()} services in Orion Township, MI. ${service.shortDesc}. ${priceLine}`,
   };
 }
 
@@ -138,8 +141,14 @@ export default async function ServicePage({
                 <div className="absolute inset-0 bg-gradient-to-t from-rpm-black/30 to-transparent" />
                 {/* Price badge */}
                 <div className="absolute bottom-4 right-4 bg-rpm-dark/90 backdrop-blur-md border border-rpm-gray/50 rounded-xl px-5 py-3">
-                  <span className="text-[10px] uppercase tracking-[0.2em] text-rpm-silver block">Starting at</span>
-                  <span className="text-2xl font-black text-rpm-white">${service.startingPrice.toLocaleString()}</span>
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-rpm-silver block">
+                    {HIDE_PRICE_SERVICES.has(service.id) ? "Pricing" : "Starting at"}
+                  </span>
+                  <span className="text-2xl font-black text-rpm-white">
+                    {HIDE_PRICE_SERVICES.has(service.id)
+                      ? "Custom Quote"
+                      : `$${service.startingPrice.toLocaleString()}`}
+                  </span>
                 </div>
               </div>
             </AnimatedSection>

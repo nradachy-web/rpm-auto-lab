@@ -40,7 +40,7 @@ export const SERVICES = [
       "5+ year durability",
       "Self-cleaning effect",
     ],
-    startingPrice: 599,
+    startingPrice: 799,
   },
   {
     id: "paint-protection-film",
@@ -72,7 +72,7 @@ export const SERVICES = [
       "Lifetime warranty",
       "Multiple shade options",
     ],
-    startingPrice: 249,
+    startingPrice: 99,
   },
   {
     id: "vehicle-wraps",
@@ -290,6 +290,39 @@ export const SERVICE_DETAILS: Record<string, {
     video: "/rpm-auto-lab/videos/services/windshield-protection.mp4",
   },
 };
+
+// Tier options shown inline under a service in the quote builder.
+// Keys must match a SERVICES.id. Tiers without a price stay anonymous on the
+// review screen (used for PPF since we don't disclose those numbers publicly).
+export const SERVICE_TIERS: Record<
+  string,
+  { id: string; name: string; description?: string }[]
+> = {
+  "ceramic-coating": [
+    { id: "3yr", name: "3 Year", description: "Daily-driver protection with hydrophobic gloss." },
+    { id: "5yr", name: "5 Year", description: "Our most popular tier. Long-haul protection with annual inspections." },
+    { id: "7yr", name: "7 Year", description: "Flagship coating for show cars and meticulous owners." },
+  ],
+  "paint-protection-film": [
+    { id: "partial-front", name: "Partial Front", description: "Bumper, partial hood, partial fenders, mirrors." },
+    { id: "full-front", name: "Full Front", description: "Full hood, full fenders, bumper, mirrors, headlights." },
+    { id: "track-package", name: "Track Package", description: "Full front + rocker panels, A-pillars, rear wheel arches." },
+    { id: "full-body", name: "Full Body", description: "Every painted panel covered. The ultimate armor." },
+  ],
+  "window-tint": [
+    { id: "front-windows", name: "Front Windows", description: "Two front side windows." },
+    { id: "full-car", name: "Full Car", description: "All side windows + rear glass." },
+    { id: "full-plus-windshield", name: "Full Car + Windshield", description: "Full car tint with ceramic windshield film." },
+  ],
+  detailing: [
+    { id: "int-ext", name: "Interior + Exterior", description: "Full top-to-bottom restoration." },
+    { id: "interior", name: "Interior Only", description: "Deep clean, leather conditioning, steam, glass." },
+    { id: "exterior", name: "Exterior Only", description: "Hand wash, decon, dressings, glass." },
+  ],
+};
+
+// Services whose pricing we don't want shown on the marketing site. Quote-only.
+export const HIDE_PRICE_SERVICES = new Set<string>(["paint-protection-film"]);
 
 export const STATS = [
   { value: 1000, suffix: "+", label: "Vehicles Protected" },

@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { SERVICES } from "@/lib/constants";
+import { SERVICES, SERVICE_TIERS, HIDE_PRICE_SERVICES } from "@/lib/constants";
 import VehicleSearch from "./VehicleSearch";
 import Button from "@/components/ui/Button";
 import { api } from "@/lib/api";
@@ -63,6 +63,8 @@ export default function QuoteForm() {
   });
 
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  // serviceId -> tier id for services that have tier choices
+  const [serviceTiers, setServiceTiers] = useState<Record<string, string>>({});
   const [contact, setContact] = useState<ContactInfo>({
     name: "",
     email: "",
@@ -72,7 +74,9 @@ export default function QuoteForm() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Estimated total excludes services we don't disclose pricing for (PPF).
   const estimatedTotal = selectedServices.reduce((sum, id) => {
+    if (HIDE_PRICE_SERVICES.has(id)) return sum;
     const service = SERVICES.find((s) => s.id === id);
     return sum + (service?.startingPrice ?? 0);
   }, 0);
@@ -85,9 +89,26 @@ export default function QuoteForm() {
   );
 
   const toggleService = (id: string) => {
-    setSelectedServices((prev) =>
-      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
-    );
+    setSelectedServices((prev) => {
+      const adding = !prev.includes(id);
+      // Default-pick the most popular tier so someone can hit Continue without
+      // touching the radios. Cleared when the service itself is unchecked.
+      if (adding && SERVICE_TIERS[id] && !serviceTiers[id]) {
+        const popular = SERVICE_TIERS[id][1] ?? SERVICE_TIERS[id][0];
+        setServiceTiers((t) => ({ ...t, [id]: popular.id }));
+      }
+      if (!adding) {
+        setServiceTiers((t) => {
+          const { [id]: _drop, ...rest } = t;
+          return rest;
+        });
+      }
+      return adding ? [...prev, id] : prev.filter((s) => s !== id);
+    });
+  };
+
+  const setTier = (serviceId: string, tierId: string) => {
+    setServiceTiers((t) => ({ ...t, [serviceId]: tierId }));
   };
 
   const validateStep = (): boolean => {
@@ -102,6 +123,14 @@ export default function QuoteForm() {
     if (step === 1) {
       if (selectedServices.length === 0) {
         newErrors.services = "Please select at least one service";
+      } else {
+        const missingTier = selectedServices.find(
+          (id) => SERVICE_TIERS[id] && !serviceTiers[id]
+        );
+        if (missingTier) {
+          const svc = SERVICES.find((s) => s.id === missingTier);
+          newErrors.services = `Pick an option for ${svc?.name ?? "your service"}`;
+        }
       }
     }
 
@@ -177,6 +206,7 @@ export default function QuoteForm() {
         color: vehicle.color || undefined,
       },
       services: selectedServices,
+      tiers: serviceTiers,
       contact: {
         name: contact.name,
         email: contact.email,
@@ -205,7 +235,15 @@ export default function QuoteForm() {
     const vehicleStr = [vehicle.year, vehicle.make, vehicle.model, vehicle.trim]
       .filter(Boolean)
       .join(" ");
-    const quoteSummary = `${vehicleStr}\nServices: ${selectedServices.join(", ")}\nEstimated: $${estimatedTotal.toLocaleString()}`;
+    const serviceLines = selectedServices.map((id) => {
+      const svc = SERVICES.find((s) => s.id === id);
+      const tierId = serviceTiers[id];
+      const tier = tierId
+        ? SERVICE_TIERS[id]?.find((t) => t.id === tierId)
+        : null;
+      return tier ? `${svc?.name} — ${tier.name}` : svc?.name ?? id;
+    });
+    const quoteSummary = `${vehicleStr}\nServices:\n  - ${serviceLines.join("\n  - ")}\nEstimated: $${estimatedTotal.toLocaleString()}+`;
 
     const welcome = sendWelcomeQuote({
       to: contact.email,
@@ -357,6 +395,8 @@ export default function QuoteForm() {
               <StepServices
                 selected={selectedServices}
                 toggle={toggleService}
+                tiers={serviceTiers}
+                setTier={setTier}
                 errors={errors}
               />
             )}
@@ -371,6 +411,7 @@ export default function QuoteForm() {
               <StepReview
                 vehicle={vehicle}
                 services={selectedServices}
+                tiers={serviceTiers}
                 contact={contact}
                 total={estimatedTotal}
               />
@@ -464,10 +505,14 @@ function StepVehicle({
 function StepServices({
   selected,
   toggle,
+  tiers,
+  setTier,
   errors,
 }: {
   selected: string[];
   toggle: (id: string) => void;
+  tiers: Record<string, string>;
+  setTier: (serviceId: string, tierId: string) => void;
   errors: Record<string, string>;
 }) {
   return (
@@ -477,7 +522,7 @@ function StepServices({
           What services are you interested in?
         </h3>
         <p className="text-sm text-rpm-silver">
-          Select all that apply — we&apos;ll bundle pricing for you
+          Select all that apply. We&apos;ll bundle pricing for you.
         </p>
       </div>
 
@@ -489,17 +534,20 @@ function StepServices({
         {SERVICES.map((service) => {
           const isSelected = selected.includes(service.id);
           const isPopular = service.id === MOST_POPULAR_SERVICE;
+          const hidePrice = HIDE_PRICE_SERVICES.has(service.id);
+          const serviceTiers = SERVICE_TIERS[service.id];
+          const hasTiers = Boolean(serviceTiers && serviceTiers.length > 0);
+          const selectedTierId = tiers[service.id];
 
           return (
-            <button
+            <div
               key={service.id}
-              type="button"
-              onClick={() => toggle(service.id)}
               className={cn(
-                "relative text-left rounded-lg border p-4 transition-all duration-200",
+                "relative rounded-lg border transition-all duration-200",
                 isSelected
-                  ? "bg-rpm-red/10 border-rpm-red text-rpm-white"
-                  : "bg-rpm-charcoal border-rpm-gray text-rpm-silver hover:border-rpm-silver/50"
+                  ? "bg-rpm-red/10 border-rpm-red"
+                  : "bg-rpm-charcoal border-rpm-gray hover:border-rpm-silver/50",
+                isSelected && hasTiers && "sm:col-span-2"
               )}
             >
               {isPopular && (
@@ -507,47 +555,129 @@ function StepServices({
                   Most Popular
                 </span>
               )}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      "flex h-5 w-5 items-center justify-center rounded border transition-all",
-                      isSelected
-                        ? "bg-rpm-red border-rpm-red"
-                        : "border-rpm-silver/40"
-                    )}
-                  >
-                    {isSelected && (
-                      <svg
-                        className="h-3 w-3 text-white"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={3}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                    )}
+
+              {/* Selection header */}
+              <button
+                type="button"
+                onClick={() => toggle(service.id)}
+                className="w-full text-left p-4"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className={cn(
+                        "flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border transition-all",
+                        isSelected
+                          ? "bg-rpm-red border-rpm-red"
+                          : "border-rpm-silver/40"
+                      )}
+                    >
+                      {isSelected && (
+                        <svg
+                          className="h-3 w-3 text-white"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={3}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                      )}
+                    </div>
+                    <span
+                      className={cn(
+                        "font-medium truncate",
+                        isSelected ? "text-rpm-white" : "text-rpm-silver"
+                      )}
+                    >
+                      {service.name}
+                    </span>
                   </div>
-                  <span className="font-medium">{service.name}</span>
-                </div>
-                <span
-                  className={cn(
-                    "text-sm font-semibold",
-                    isSelected ? "text-rpm-red" : "text-rpm-silver"
+                  {!hidePrice && (
+                    <span
+                      className={cn(
+                        "text-sm font-semibold flex-shrink-0",
+                        isSelected ? "text-rpm-red" : "text-rpm-silver"
+                      )}
+                    >
+                      From ${service.startingPrice}
+                    </span>
                   )}
-                >
-                  From ${service.startingPrice}
-                </span>
-              </div>
-              <p className="mt-1 ml-8 text-xs text-rpm-silver/70">
-                {service.shortDesc}
-              </p>
-            </button>
+                </div>
+                <p className="mt-1 ml-8 text-xs text-rpm-silver/70">
+                  {service.shortDesc}
+                </p>
+              </button>
+
+              {/* Tier picker (slides open when service is checked) */}
+              <AnimatePresence initial={false}>
+                {isSelected && hasTiers && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.25, ease: "easeInOut" }}
+                    className="overflow-hidden"
+                  >
+                    <div className="border-t border-rpm-red/20 px-4 pt-3 pb-4">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-rpm-silver mb-2">
+                        Choose your option
+                      </p>
+                      <div className="grid grid-cols-1 gap-2">
+                        {serviceTiers!.map((tier) => {
+                          const tierSelected = selectedTierId === tier.id;
+                          return (
+                            <button
+                              key={tier.id}
+                              type="button"
+                              onClick={() => setTier(service.id, tier.id)}
+                              className={cn(
+                                "text-left rounded-md border px-3 py-2.5 transition-all duration-150 flex items-start gap-3",
+                                tierSelected
+                                  ? "bg-rpm-red/15 border-rpm-red"
+                                  : "bg-rpm-dark/50 border-rpm-gray/60 hover:border-rpm-silver/60"
+                              )}
+                            >
+                              <div
+                                className={cn(
+                                  "mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border transition-all",
+                                  tierSelected
+                                    ? "border-rpm-red"
+                                    : "border-rpm-silver/40"
+                                )}
+                              >
+                                {tierSelected && (
+                                  <span className="block h-2 w-2 rounded-full bg-rpm-red" />
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <span
+                                  className={cn(
+                                    "block text-sm font-semibold",
+                                    tierSelected ? "text-rpm-white" : "text-rpm-silver"
+                                  )}
+                                >
+                                  {tier.name}
+                                </span>
+                                {tier.description && (
+                                  <span className="block text-[11px] text-rpm-silver/70 leading-snug mt-0.5">
+                                    {tier.description}
+                                  </span>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           );
         })}
       </div>
@@ -653,11 +783,13 @@ function StepContact({
 function StepReview({
   vehicle,
   services,
+  tiers,
   contact,
   total,
 }: {
   vehicle: VehicleInfo;
   services: string[];
+  tiers: Record<string, string>;
   contact: ContactInfo;
   total: number;
 }) {
@@ -695,14 +827,24 @@ function StepReview({
           {services.map((id) => {
             const service = SERVICES.find((s) => s.id === id);
             if (!service) return null;
+            const tierId = tiers[id];
+            const tier = tierId
+              ? SERVICE_TIERS[id]?.find((t) => t.id === tierId)
+              : null;
+            const hidePrice = HIDE_PRICE_SERVICES.has(id);
             return (
               <li
                 key={id}
-                className="flex items-center justify-between text-sm"
+                className="flex items-center justify-between text-sm gap-3"
               >
-                <span className="text-rpm-white">{service.name}</span>
-                <span className="text-rpm-silver">
-                  From ${service.startingPrice}
+                <span className="text-rpm-white min-w-0">
+                  {service.name}
+                  {tier && (
+                    <span className="text-rpm-silver"> - {tier.name}</span>
+                  )}
+                </span>
+                <span className="text-rpm-silver flex-shrink-0">
+                  {hidePrice ? "Custom Quote" : `From $${service.startingPrice}`}
                 </span>
               </li>
             );
@@ -714,6 +856,12 @@ function StepReview({
             ${total.toLocaleString()}+
           </span>
         </div>
+        {services.some((id) => HIDE_PRICE_SERVICES.has(id)) && (
+          <p className="mt-2 text-[11px] text-rpm-silver/70 leading-relaxed">
+            Estimate excludes paint protection film. We&apos;ll send a custom PPF
+            quote based on your vehicle and selected coverage.
+          </p>
+        )}
       </div>
 
       {/* Contact */}
